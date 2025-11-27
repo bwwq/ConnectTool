@@ -1,5 +1,5 @@
 name: 生成EXE文件
-on: workflow_dispatch  # 允许手动按钮触发
+on: workflow_dispatch
 
 jobs:
   build-windows:
@@ -8,7 +8,7 @@ jobs:
     steps:
     - uses: actions/checkout@v3
       with:
-        submodules: recursive # 确保下载所有子模块
+        submodules: recursive
 
     # 1. 配置 vcpkg 环境
     - name: Setup vcpkg
@@ -16,19 +16,20 @@ jobs:
         git clone https://github.com/Microsoft/vcpkg.git
         .\vcpkg\bootstrap-vcpkg.bat
 
-    # 2. 安装项目需要的依赖 (根据官方README)
+    # 2. 安装项目需要的依赖
     - name: Install Dependencies
       run: .\vcpkg\vcpkg install glfw3 boost-system:x64-windows
 
-    # 3. 编译项目
+    # 3. 编译项目 (这里修复了命令顺序)
     - name: Build
+      shell: cmd
       run: |
         mkdir build
         cd build
-        cmake .. -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows
+        cmake -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows ..
         cmake --build . --config Release
 
-    # 4. 把生成的文件打包上传
+    # 4. 上传成品
     - name: Upload EXE
       uses: actions/upload-artifact@v4
       with:
