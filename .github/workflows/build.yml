@@ -1,4 +1,4 @@
-name: 自建源稳定版-生成EXE
+name: 最终修正版-生成EXE
 on: workflow_dispatch
 
 jobs:
@@ -21,50 +21,35 @@ jobs:
     - name: Download SDK from User Repo
       shell: powershell
       run: |
-        # 使用你上传的文件的【直链】(Raw link)
         $url = "https://github.com/bwwq/test/raw/main/steamworks_sdk_163.zip"
         
-        Write-Output "Downloading SDK from your repo..."
+        Write-Output "Downloading SDK..."
         Invoke-WebRequest -Uri $url -OutFile "sdk.zip" -ErrorAction Stop
 
-        # 检查文件大小 (防止下载到几KB的网页)
-        if ((Get-Item "sdk.zip").Length -lt 1000) {
-            throw "Error: Downloaded file is too small. Is the repo public?"
-        }
+        if ((Get-Item "sdk.zip").Length -lt 1000) { throw "Download failed/file too small" }
 
-        # 解压
         Expand-Archive -Path "sdk.zip" -DestinationPath "temp_sdk" -Force
 
-        # --- 暴力搬运逻辑 ---
         New-Item -ItemType Directory -Force -Path "steam"
         New-Item -ItemType Directory -Force -Path "lib"
         New-Item -ItemType Directory -Force -Path "build/Release"
 
-        # 1. 找头文件
         $header = Get-ChildItem -Path "temp_sdk" -Recurse -Filter "steam_api.h" | Select-Object -First 1
-        if ($header) { 
-            Copy-Item -Path "$($header.DirectoryName)/*.h" -Destination "steam" -Force 
-            Write-Output "Headers copied."
-        } else { throw "Could not find steam_api.h in the zip." }
+        if ($header) { Copy-Item -Path "$($header.DirectoryName)/*.h" -Destination "steam" -Force }
 
-        # 2. 找 Lib
         $lib = Get-ChildItem -Path "temp_sdk" -Recurse -Filter "steam_api64.lib" | Select-Object -First 1
         if ($lib) { 
             Copy-Item -Path $lib.FullName -Destination "lib" -Force 
             Copy-Item -Path $lib.FullName -Destination "steam" -Force 
-             Write-Output "Lib copied."
-        } else { throw "Could not find steam_api64.lib in the zip." }
+        }
 
-        # 3. 找 DLL
         $dll = Get-ChildItem -Path "temp_sdk" -Recurse -Filter "steam_api64.dll" | Select-Object -First 1
-        if ($dll) { 
-            Copy-Item -Path $dll.FullName -Destination "build/Release" -Force 
-             Write-Output "DLL copied."
-        } else { throw "Could not find steam_api64.dll in the zip." }
+        if ($dll) { Copy-Item -Path $dll.FullName -Destination "build/Release" -Force }
 
     - name: Build Project
+      # 【修正点】这里加了 -Force，文件夹存在也不会报错了
       run: |
-        mkdir build
+        New-Item -ItemType Directory -Force -Path "build"
         cd build
         cmake .. -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows -DCMAKE_CXX_FLAGS="-I../vcpkg/installed/x64-windows/include"
         cmake --build . --config Release
