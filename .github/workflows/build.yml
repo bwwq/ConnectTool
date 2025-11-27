@@ -1,4 +1,4 @@
-name: 绝对防御版-生成EXE
+name: 最终核弹版-生成EXE
 on: workflow_dispatch
 
 jobs:
@@ -15,35 +15,49 @@ jobs:
         git clone https://github.com/Microsoft/vcpkg.git
         .\vcpkg\bootstrap-vcpkg.bat
 
-    - name: 2. 安装主流依赖
-      # 保留 imgui, glfw3, boost
+    - name: 2. 安装 Vcpkg 依赖
+      # 安装 ImGui, GLFW, Boost。这些是微软维护的源，极稳。
       run: .\vcpkg\vcpkg install glfw3:x64-windows imgui[core,glfw-binding,opengl3-binding]:x64-windows boost-asio boost-system boost-thread boost-date-time boost-regex:x64-windows
 
-    - name: 3. 手动部署 Nanoid (单文件直连)
+    - name: 3. 部署 Nanoid (三保险策略)
       shell: powershell
       run: |
-        # 创建符合代码 #include "nanoid/nanoid.h" 的目录结构
-        # 也就是： nanoid_root/nanoid/nanoid.h
-        
+        # 创建目录结构 nanoid_root/nanoid/nanoid.h
         New-Item -ItemType Directory -Force -Path "nanoid_root\nanoid"
         
-        # 直接下载 nanoid.h 的原始内容，不走 git 协议，100% 成功
-        $url = "https://raw.githubusercontent.com/mcmxc/nanoid.cpp/master/include/nanoid/nanoid.h"
+        # 定义三个不同的镜像源 (防止某个作者删库)
+        $urls = @(
+            "https://raw.githubusercontent.com/CybernetHacker14/nanoid-cpp/master/include/nanoid/nanoid.h",
+            "https://raw.githubusercontent.com/mcmikecreations/nanoid_cpp/main/include/nanoid/nanoid.h",
+            "https://raw.githubusercontent.com/fartin13/nanoid-cpp/master/include/nanoid/nanoid.h"
+        )
         
-        Write-Output "Downloading nanoid.h..."
-        Invoke-WebRequest -Uri $url -OutFile "nanoid_root\nanoid\nanoid.h" -ErrorAction Stop
+        $success = $false
+        foreach ($url in $urls) {
+            try {
+                Write-Output "Trying download from: $url"
+                Invoke-WebRequest -Uri $url -OutFile "nanoid_root\nanoid\nanoid.h" -ErrorAction Stop
+                
+                # 验证文件内容（确保不是404网页）
+                if ((Get-Item "nanoid_root\nanoid\nanoid.h").Length -gt 100) { 
+                    $success = $true
+                    Write-Output "Success!"
+                    break 
+                }
+            } catch { Write-Output "Failed, trying next..." }
+        }
+        
+        if (-not $success) { throw "CRITICAL: All Nanoid mirrors are dead." }
 
-        # 检查是否下载成功
-        if ((Get-Item "nanoid_root\nanoid\nanoid.h").Length -lt 100) { throw "Nanoid download failed" }
-
-    - name: 4. 下载并部署 Steam SDK
+    - name: 4. 部署 Steam SDK
       shell: powershell
       run: |
+        # 使用你的直链
         $url = "https://github.com/bwwq/test/raw/main/steamworks_sdk_163.zip"
         
         Write-Output "Downloading SDK..."
         Invoke-WebRequest -Uri $url -OutFile "sdk.zip" -ErrorAction Stop
-        if ((Get-Item "sdk.zip").Length -lt 1000) { throw "SDK Download failed" }
+        if ((Get-Item "sdk.zip").Length -lt 1000) { throw "SDK file too small" }
 
         Expand-Archive -Path "sdk.zip" -DestinationPath "temp_sdk" -Force
 
@@ -51,23 +65,26 @@ jobs:
         New-Item -ItemType Directory -Force -Path "lib"
         New-Item -ItemType Directory -Force -Path "build/Release"
 
+        # 归位头文件
         $header = Get-ChildItem -Path "temp_sdk" -Recurse -Filter "steam_api.h" | Select-Object -First 1
         if ($header) { Copy-Item -Path "$($header.DirectoryName)/*.h" -Destination "steam" -Force } else { throw "Missing steam_api.h" }
 
+        # 归位 Lib
         $lib = Get-ChildItem -Path "temp_sdk" -Recurse -Filter "steam_api64.lib" | Select-Object -First 1
         if ($lib) { 
             Copy-Item -Path $lib.FullName -Destination "lib" -Force 
             Copy-Item -Path $lib.FullName -Destination "steam" -Force 
         } else { throw "Missing steam_api64.lib" }
 
+        # 归位 DLL
         $dll = Get-ChildItem -Path "temp_sdk" -Recurse -Filter "steam_api64.dll" | Select-Object -First 1
         if ($dll) { Copy-Item -Path $dll.FullName -Destination "build/Release" -Force } else { throw "Missing steam_api64.dll" }
 
     - name: 5. 编译项目
-      # 【关键】添加 /I ../nanoid_root，这样代码里的 #include "nanoid/nanoid.h" 就能找到 nanoid_root/nanoid/nanoid.h
       run: |
         New-Item -ItemType Directory -Force -Path "build"
         cd build
+        # 强制指定所有头文件路径 (vcpkg, steam, nanoid)
         cmd /c "cmake .. -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows -DCMAKE_CXX_FLAGS=""/I ../vcpkg/installed/x64-windows/include /I ../steam /I ../nanoid_root /EHsc"""
         cmd /c "cmake --build . --config Release"
 
