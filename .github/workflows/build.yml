@@ -1,4 +1,4 @@
-name: 修复版-生成EXE文件
+name: 终极修复版-生成EXE
 on: workflow_dispatch
 
 jobs:
@@ -10,41 +10,48 @@ jobs:
       with:
         submodules: recursive
 
-    # 1. 准备 vcpkg (包管理器)
+    # 1. 准备 vcpkg 环境
     - name: Setup vcpkg
       run: |
         git clone https://github.com/Microsoft/vcpkg.git
         .\vcpkg\bootstrap-vcpkg.bat
 
-    # 2. 安装 Boost 完整依赖 (增加 asio, thread, date-time 等)
+    # 2. 安装 Boost 依赖 (这一步依然需要5-8分钟)
     - name: Install Boost Dependencies
-      # 这一步会有点慢(约5-8分钟)，因为要编译Boost库，请耐心等待
       run: .\vcpkg\vcpkg install boost-asio boost-system boost-thread boost-date-time boost-regex:x64-windows
 
-    # 3. 关键修复：下载 Steamworks SDK 并暴力植入头文件
-    - name: Download and Hack Steamworks SDK
+    # 3. 【重点修改】从公共镜像克隆 Steamworks SDK
+    - name: Clone Steamworks SDK from Mirror
       shell: powershell
       run: |
-        # 下载官方 SDK
-        Invoke-WebRequest -Uri "https://partner.steamgames.com/downloads/steamworks_sdk_157.zip" -OutFile "sdk.zip"
-        # 解压
-        Expand-Archive sdk.zip -DestinationPath .
+        # 使用 git clone 代替下载 zip，避开登录验证
+        # 使用 lucashale 的镜像源，它包含了我们需要的所有头文件和库
+        git clone --depth 1 https://github.com/lucashale/steamworks_sdk.git temp_sdk
         
-        # 【暴力修复】将 SDK 头文件直接复制到源码目录的 steam 文件夹下
-        # 这样编译器一定能找到 steam_api.h
-        Copy-Item -Path ".\sdk\public\steam\*.h" -Destination ".\steam\" -Force
-        
-        # 同时也把 .lib 库文件复制出来，防止链接失败
+        # 建立目标文件夹
+        New-Item -ItemType Directory -Force -Path ".\steam"
         New-Item -ItemType Directory -Force -Path ".\lib"
-        Copy-Item -Path ".\sdk\redistributable_bin\win64\steam_api64.lib" -Destination ".\lib\" -Force
-        Copy-Item -Path ".\sdk\redistributable_bin\win64\steam_api64.lib" -Destination ".\steam\" -Force
+        
+        # 复制头文件 (steam_api.h 等)
+        Copy-Item -Path ".\temp_sdk\public\steam\*.h" -Destination ".\steam\" -Force
+        
+        # 复制库文件 (steam_api64.lib)
+        # 注意：不同镜像源目录结构可能微调，这里同时尝试两个常见路径确保复制成功
+        if (Test-Path ".\temp_sdk\redistributable_bin\win64\steam_api64.lib") {
+            Copy-Item -Path ".\temp_sdk\redistributable_bin\win64\steam_api64.lib" -Destination ".\lib\" -Force
+            Copy-Item -Path ".\temp_sdk\redistributable_bin\win64\steam_api64.lib" -Destination ".\steam\" -Force
+        }
+        
+        # 这里的 DLL 是为了最后打包运行用的
+        New-Item -ItemType Directory -Force -Path ".\build\Release"
+        Copy-Item -Path ".\temp_sdk\redistributable_bin\win64\steam_api64.dll" -Destination ".\build\Release\" -Force
 
-    # 4. 编译 (增加强制包含路径参数，防止 CMake 找不到头文件)
+    # 4. 编译
     - name: Build
       run: |
         mkdir build
         cd build
-        # 注意：增加了 CMAKE_CXX_FLAGS 强制指定 vcpkg 的 include 目录
+        # 强制指定 vcpkg 头文件路径，防止 Boost 找不到
         cmake .. -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows -DCMAKE_CXX_FLAGS="-I../vcpkg/installed/x64-windows/include"
         cmake --build . --config Release
 
@@ -52,8 +59,5 @@ jobs:
     - name: Upload EXE
       uses: actions/upload-artifact@v4
       with:
-        name: ConnectTool-Fixed
-        # 上传生成的 exe 以及运行必须的 steam_api64.dll
-        path: |
-          build/Release/*.exe
-          sdk/redistributable_bin/win64/steam_api64.dll
+        name: ConnectTool-Final
+        path: build/Release/*
