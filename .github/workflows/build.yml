@@ -1,4 +1,4 @@
-name: 绝不弹窗版-生成EXE
+name: ConnectTool Build (ASCII ONLY)
 on: workflow_dispatch
 
 jobs:
@@ -10,91 +10,45 @@ jobs:
       with:
         submodules: recursive
 
-    # 1. 准备 vcpkg (这步从来没出过错，保留)
     - name: Setup vcpkg
       run: |
         git clone https://github.com/Microsoft/vcpkg.git
         .\vcpkg\bootstrap-vcpkg.bat
 
-    # 2. 安装 Boost (虽然慢但很稳，保留)
-    - name: Install Boost Dependencies
+    - name: Install Boost
       run: .\vcpkg\vcpkg install boost-asio boost-system boost-thread boost-date-time boost-regex:x64-windows
 
-    # 3. 【彻底重写】直接下载ZIP，不走Git，绝无权限弹窗
-    - name: Download SDK via ZIP
+    - name: Download and Setup SDK
       shell: powershell
       run: |
-        # 定义两个备用下载地址 (直接指向 ZIP 文件，避开 Git 验证)
-        $Urls = @(
-            "https://github.com/es3n1in/steamworks_sdk/archive/refs/heads/master.zip",
-            "https://github.com/Ray1235/steamworks_sdk/archive/refs/heads/master.zip"
-        )
+        $url = "https://github.com/es3n1in/steamworks_sdk/archive/refs/heads/master.zip"
+        Invoke-WebRequest -Uri $url -OutFile "sdk.zip"
+        Expand-Archive -Path "sdk.zip" -DestinationPath "temp_sdk" -Force
         
-        $downloaded = $false
-        foreach ($url in $Urls) {
-            try {
-                Write-Host "正在尝试下载: $url"
-                Invoke-WebRequest -Uri $url -OutFile "sdk.zip" -ErrorAction Stop
-                if (Test-Path "sdk.zip") {
-                    if ((Get-Item "sdk.zip").Length -gt 1000) { # 确保不是空文件
-                        $downloaded = $true
-                        Write-Host "下载成功！"
-                        break
-                    }
-                }
-            } catch {
-                Write-Host "下载失败，尝试下一个源..."
-            }
+        New-Item -ItemType Directory -Force -Path "steam"
+        New-Item -ItemType Directory -Force -Path "lib"
+        New-Item -ItemType Directory -Force -Path "build/Release"
+
+        $header = Get-ChildItem -Path "temp_sdk" -Recurse -Filter "steam_api.h" | Select-Object -First 1
+        if ($header) { Copy-Item -Path "$($header.DirectoryName)/*.h" -Destination "steam" -Force }
+
+        $lib = Get-ChildItem -Path "temp_sdk" -Recurse -Filter "steam_api64.lib" | Select-Object -First 1
+        if ($lib) { 
+           Copy-Item -Path $lib.FullName -Destination "lib" -Force 
+           Copy-Item -Path $lib.FullName -Destination "steam" -Force 
         }
 
-        if (-not $downloaded) {
-            Write-Error "所有下载源都失效了，请联系管理员。"
-            exit 1
-        }
+        $dll = Get-ChildItem -Path "temp_sdk" -Recurse -Filter "steam_api64.dll" | Select-Object -First 1
+        if ($dll) { Copy-Item -Path $dll.FullName -Destination "build/Release" -Force }
 
-        # 解压
-        Write-Host "正在解压..."
-        Expand-Archive -Path "sdk.zip" -DestinationPath ".\temp_sdk_unzipped" -Force
-
-        # --- 暴力文件搬运 (不管解压出来文件夹叫什么名字，全盘搜索) ---
-        
-        # 1. 建目录
-        New-Item -ItemType Directory -Force -Path ".\steam"
-        New-Item -ItemType Directory -Force -Path ".\lib"
-        New-Item -ItemType Directory -Force -Path ".\build\Release"
-
-        # 2. 搜刮 steam_api.h
-        $header = Get-ChildItem -Path ".\temp_sdk_unzipped" -Recurse -Filter "steam_api.h" | Select-Object -First 1
-        if ($header) { 
-            Copy-Item -Path $header.DirectoryName\*.h -Destination ".\steam\" -Force 
-            Write-Host "头文件已就位"
-        } else { Write-Error "找不到 steam_api.h" }
-
-        # 3. 搜刮 steam_api64.lib
-        $lib = Get-ChildItem -Path ".\temp_sdk_unzipped" -Recurse -Filter "steam_api64.lib" | Select-Object -First 1
-        if ($lib) {
-            Copy-Item -Path $lib.FullName -Destination ".\lib\" -Force
-            Copy-Item -Path $lib.FullName -Destination ".\steam\" -Force
-            Write-Host "Lib文件已就位"
-        } else { Write-Error "找不到 steam_api64.lib" }
-
-        # 4. 搜刮 steam_api64.dll
-        $dll = Get-ChildItem -Path ".\temp_sdk_unzipped" -Recurse -Filter "steam_api64.dll" | Select-Object -First 1
-        if ($dll) {
-            Copy-Item -Path $dll.FullName -Destination ".\build\Release\" -Force
-            Write-Host "DLL文件已就位"
-        } else { Write-Error "找不到 steam_api64.dll" }
-
-    # 4. 编译
-    - name: Build
+    - name: Build Project
       run: |
         mkdir build
         cd build
         cmake .. -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows -DCMAKE_CXX_FLAGS="-I../vcpkg/installed/x64-windows/include"
         cmake --build . --config Release
 
-    # 5. 上传
-    - name: Upload EXE
+    - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
         name: ConnectTool-Windows
