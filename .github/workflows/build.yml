@@ -1,4 +1,4 @@
-name: 生成EXE文件
+name: 修复版-生成EXE文件
 on: workflow_dispatch
 
 jobs:
@@ -10,28 +10,50 @@ jobs:
       with:
         submodules: recursive
 
-    # 1. 配置 vcpkg 环境
+    # 1. 准备 vcpkg (包管理器)
     - name: Setup vcpkg
       run: |
         git clone https://github.com/Microsoft/vcpkg.git
         .\vcpkg\bootstrap-vcpkg.bat
 
-    # 2. 安装项目需要的依赖
-    - name: Install Dependencies
-      run: .\vcpkg\vcpkg install glfw3 boost-system:x64-windows
+    # 2. 安装 Boost 完整依赖 (增加 asio, thread, date-time 等)
+    - name: Install Boost Dependencies
+      # 这一步会有点慢(约5-8分钟)，因为要编译Boost库，请耐心等待
+      run: .\vcpkg\vcpkg install boost-asio boost-system boost-thread boost-date-time boost-regex:x64-windows
 
-    # 3. 编译项目 (这里修复了命令顺序)
+    # 3. 关键修复：下载 Steamworks SDK 并暴力植入头文件
+    - name: Download and Hack Steamworks SDK
+      shell: powershell
+      run: |
+        # 下载官方 SDK
+        Invoke-WebRequest -Uri "https://partner.steamgames.com/downloads/steamworks_sdk_157.zip" -OutFile "sdk.zip"
+        # 解压
+        Expand-Archive sdk.zip -DestinationPath .
+        
+        # 【暴力修复】将 SDK 头文件直接复制到源码目录的 steam 文件夹下
+        # 这样编译器一定能找到 steam_api.h
+        Copy-Item -Path ".\sdk\public\steam\*.h" -Destination ".\steam\" -Force
+        
+        # 同时也把 .lib 库文件复制出来，防止链接失败
+        New-Item -ItemType Directory -Force -Path ".\lib"
+        Copy-Item -Path ".\sdk\redistributable_bin\win64\steam_api64.lib" -Destination ".\lib\" -Force
+        Copy-Item -Path ".\sdk\redistributable_bin\win64\steam_api64.lib" -Destination ".\steam\" -Force
+
+    # 4. 编译 (增加强制包含路径参数，防止 CMake 找不到头文件)
     - name: Build
-      shell: cmd
       run: |
         mkdir build
         cd build
-        cmake -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows ..
+        # 注意：增加了 CMAKE_CXX_FLAGS 强制指定 vcpkg 的 include 目录
+        cmake .. -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows -DCMAKE_CXX_FLAGS="-I../vcpkg/installed/x64-windows/include"
         cmake --build . --config Release
 
-    # 4. 上传成品
+    # 5. 打包上传
     - name: Upload EXE
       uses: actions/upload-artifact@v4
       with:
-        name: ConnectTool-Windows
-        path: build/Release/*.exe
+        name: ConnectTool-Fixed
+        # 上传生成的 exe 以及运行必须的 steam_api64.dll
+        path: |
+          build/Release/*.exe
+          sdk/redistributable_bin/win64/steam_api64.dll
