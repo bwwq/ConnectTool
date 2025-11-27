@@ -1,4 +1,4 @@
-name: 最终核弹版-生成EXE
+name: 最终验证通过版-生成EXE
 on: workflow_dispatch
 
 jobs:
@@ -10,85 +10,92 @@ jobs:
       with:
         submodules: recursive
 
-    - name: 1. 准备环境 (vcpkg)
+    # 1. 准备 Vcpkg (C++包管理器)
+    - name: Setup vcpkg
       run: |
         git clone https://github.com/Microsoft/vcpkg.git
         .\vcpkg\bootstrap-vcpkg.bat
 
-    - name: 2. 安装 Vcpkg 依赖
-      # 安装 ImGui, GLFW, Boost。这些是微软维护的源，极稳。
+    # 2. 安装所有依赖库
+    # 这里安装了: GLFW3 (窗口), ImGui (界面+绑定), Boost (网络/系统)
+    - name: Install Dependencies
       run: .\vcpkg\vcpkg install glfw3:x64-windows imgui[core,glfw-binding,opengl3-binding]:x64-windows boost-asio boost-system boost-thread boost-date-time boost-regex:x64-windows
 
-    - name: 3. 部署 Nanoid (三保险策略)
+    # 3. 现场生成 Nanoid 库 (无需下载)
+    # 直接将标准的 Nanoid C++ 实现写入文件，彻底杜绝网络 404 错误
+    - name: Generate Nanoid Header
       shell: powershell
       run: |
-        # 创建目录结构 nanoid_root/nanoid/nanoid.h
         New-Item -ItemType Directory -Force -Path "nanoid_root\nanoid"
         
-        # 定义三个不同的镜像源 (防止某个作者删库)
-        $urls = @(
-            "https://raw.githubusercontent.com/CybernetHacker14/nanoid-cpp/master/include/nanoid/nanoid.h",
-            "https://raw.githubusercontent.com/mcmikecreations/nanoid_cpp/main/include/nanoid/nanoid.h",
-            "https://raw.githubusercontent.com/fartin13/nanoid-cpp/master/include/nanoid/nanoid.h"
-        )
+        $code = @"
+        #pragma once
+        #include <string>
+        #include <random>
         
-        $success = $false
-        foreach ($url in $urls) {
-            try {
-                Write-Output "Trying download from: $url"
-                Invoke-WebRequest -Uri $url -OutFile "nanoid_root\nanoid\nanoid.h" -ErrorAction Stop
-                
-                # 验证文件内容（确保不是404网页）
-                if ((Get-Item "nanoid_root\nanoid\nanoid.h").Length -gt 100) { 
-                    $success = $true
-                    Write-Output "Success!"
-                    break 
+        namespace nanoid {
+            static const std::string _default_dict = "_-0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+            
+            inline std::string generate(int size = 21) {
+                if (size <= 0) return "";
+                std::random_device rd;
+                std::mt19937 gen(rd());
+                std::uniform_int_distribution<> dis(0, 63);
+                std::string res;
+                res.reserve(size);
+                for (int i = 0; i < size; ++i) {
+                    res += _default_dict[dis(gen)];
                 }
-            } catch { Write-Output "Failed, trying next..." }
+                return res;
+            }
         }
+        "@
         
-        if (-not $success) { throw "CRITICAL: All Nanoid mirrors are dead." }
+        Set-Content -Path "nanoid_root\nanoid\nanoid.h" -Value $code
+        Write-Output "Nanoid.h created."
 
-    - name: 4. 部署 Steam SDK
+    # 4. 下载并部署 Steam SDK
+    # 使用你的稳定直链 + 智能搜索策略
+    - name: Deploy Steam SDK
       shell: powershell
       run: |
-        # 使用你的直链
         $url = "https://github.com/bwwq/test/raw/main/steamworks_sdk_163.zip"
         
         Write-Output "Downloading SDK..."
         Invoke-WebRequest -Uri $url -OutFile "sdk.zip" -ErrorAction Stop
-        if ((Get-Item "sdk.zip").Length -lt 1000) { throw "SDK file too small" }
+        if ((Get-Item "sdk.zip").Length -lt 1000) { throw "SDK file invalid" }
 
         Expand-Archive -Path "sdk.zip" -DestinationPath "temp_sdk" -Force
 
+        # 创建目标文件夹
         New-Item -ItemType Directory -Force -Path "steam"
         New-Item -ItemType Directory -Force -Path "lib"
         New-Item -ItemType Directory -Force -Path "build/Release"
 
-        # 归位头文件
+        # 智能查找并复制文件 (不管解压出来几层目录，都能找到)
         $header = Get-ChildItem -Path "temp_sdk" -Recurse -Filter "steam_api.h" | Select-Object -First 1
         if ($header) { Copy-Item -Path "$($header.DirectoryName)/*.h" -Destination "steam" -Force } else { throw "Missing steam_api.h" }
 
-        # 归位 Lib
         $lib = Get-ChildItem -Path "temp_sdk" -Recurse -Filter "steam_api64.lib" | Select-Object -First 1
         if ($lib) { 
             Copy-Item -Path $lib.FullName -Destination "lib" -Force 
             Copy-Item -Path $lib.FullName -Destination "steam" -Force 
         } else { throw "Missing steam_api64.lib" }
 
-        # 归位 DLL
         $dll = Get-ChildItem -Path "temp_sdk" -Recurse -Filter "steam_api64.dll" | Select-Object -First 1
         if ($dll) { Copy-Item -Path $dll.FullName -Destination "build/Release" -Force } else { throw "Missing steam_api64.dll" }
 
-    - name: 5. 编译项目
+    # 5. 编译项目
+    # 包含了 /I 指向所有头文件目录，并开启了 /EHsc 异常处理
+    - name: Build Project
       run: |
         New-Item -ItemType Directory -Force -Path "build"
         cd build
-        # 强制指定所有头文件路径 (vcpkg, steam, nanoid)
         cmd /c "cmake .. -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows -DCMAKE_CXX_FLAGS=""/I ../vcpkg/installed/x64-windows/include /I ../steam /I ../nanoid_root /EHsc"""
         cmd /c "cmake --build . --config Release"
 
-    - name: 6. 上传成品
+    # 6. 打包上传
+    - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
         name: ConnectTool-Windows
