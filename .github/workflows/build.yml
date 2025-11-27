@@ -1,4 +1,4 @@
-name: 真的可以了-生成EXE
+name: 绝对防御版-生成EXE
 on: workflow_dispatch
 
 jobs:
@@ -16,14 +16,25 @@ jobs:
         .\vcpkg\bootstrap-vcpkg.bat
 
     - name: 2. 安装主流依赖
-      # 【修正】去掉了报错的 nanoid，保留其他所有必须库
+      # 保留 imgui, glfw3, boost
       run: .\vcpkg\vcpkg install glfw3:x64-windows imgui[core,glfw-binding,opengl3-binding]:x64-windows boost-asio boost-system boost-thread boost-date-time boost-regex:x64-windows
 
-    - name: 3. 手动下载 Nanoid (补全缺失的库)
+    - name: 3. 手动部署 Nanoid (单文件直连)
       shell: powershell
       run: |
-        # Nanoid 不在 vcpkg 里，我们手动下载它的 C++ 实现
-        git clone https://github.com/mcmxc/nanoid.cpp.git nanoid_lib
+        # 创建符合代码 #include "nanoid/nanoid.h" 的目录结构
+        # 也就是： nanoid_root/nanoid/nanoid.h
+        
+        New-Item -ItemType Directory -Force -Path "nanoid_root\nanoid"
+        
+        # 直接下载 nanoid.h 的原始内容，不走 git 协议，100% 成功
+        $url = "https://raw.githubusercontent.com/mcmxc/nanoid.cpp/master/include/nanoid/nanoid.h"
+        
+        Write-Output "Downloading nanoid.h..."
+        Invoke-WebRequest -Uri $url -OutFile "nanoid_root\nanoid\nanoid.h" -ErrorAction Stop
+
+        # 检查是否下载成功
+        if ((Get-Item "nanoid_root\nanoid\nanoid.h").Length -lt 100) { throw "Nanoid download failed" }
 
     - name: 4. 下载并部署 Steam SDK
       shell: powershell
@@ -32,7 +43,7 @@ jobs:
         
         Write-Output "Downloading SDK..."
         Invoke-WebRequest -Uri $url -OutFile "sdk.zip" -ErrorAction Stop
-        if ((Get-Item "sdk.zip").Length -lt 1000) { throw "Download failed" }
+        if ((Get-Item "sdk.zip").Length -lt 1000) { throw "SDK Download failed" }
 
         Expand-Archive -Path "sdk.zip" -DestinationPath "temp_sdk" -Force
 
@@ -53,11 +64,11 @@ jobs:
         if ($dll) { Copy-Item -Path $dll.FullName -Destination "build/Release" -Force } else { throw "Missing steam_api64.dll" }
 
     - name: 5. 编译项目
-      # 【关键修正】添加了 /I ../nanoid_lib/include 让编译器能找到 nanoid
+      # 【关键】添加 /I ../nanoid_root，这样代码里的 #include "nanoid/nanoid.h" 就能找到 nanoid_root/nanoid/nanoid.h
       run: |
         New-Item -ItemType Directory -Force -Path "build"
         cd build
-        cmd /c "cmake .. -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows -DCMAKE_CXX_FLAGS=""/I ../vcpkg/installed/x64-windows/include /I ../steam /I ../nanoid_lib/include /EHsc"""
+        cmd /c "cmake .. -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows -DCMAKE_CXX_FLAGS=""/I ../vcpkg/installed/x64-windows/include /I ../steam /I ../nanoid_root /EHsc"""
         cmd /c "cmake --build . --config Release"
 
     - name: 6. 上传成品
