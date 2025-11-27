@@ -1,4 +1,4 @@
-name: 最终重构版-生成EXE
+name: 修正组件版-生成EXE
 on: workflow_dispatch
 
 jobs:
@@ -51,30 +51,22 @@ jobs:
         
         Expand-Archive -Path "sdk.zip" -DestinationPath "steam_sdk_raw" -Force
         
-        # 整理出一个干净的 steam_sdk 目录
-        New-Item -ItemType Directory -Force -Path "steam_sdk\public\steam" 
-
-[Image of Directory Structure]
-
+        New-Item -ItemType Directory -Force -Path "steam_sdk\public\steam"
         New-Item -ItemType Directory -Force -Path "steam_sdk\lib"
         
-        # 复制头文件
         $headerRoot = Get-ChildItem -Path "steam_sdk_raw" -Recurse -Filter "steam_api.h" | Select-Object -First 1
         Copy-Item -Path "$($headerRoot.DirectoryName)\*.h" -Destination "steam_sdk\public\steam" -Force
         
-        # 复制 Lib
         $libFile = Get-ChildItem -Path "steam_sdk_raw" -Recurse -Filter "steam_api64.lib" | Select-Object -First 1
         Copy-Item -Path $libFile.FullName -Destination "steam_sdk\lib\steam_api64.lib" -Force
         
-        # 复制 DLL 到构建目录 (运行必需)
         New-Item -ItemType Directory -Force -Path "build\Release"
         $dllFile = Get-ChildItem -Path "steam_sdk_raw" -Recurse -Filter "steam_api64.dll" | Select-Object -First 1
         Copy-Item -Path $dllFile.FullName -Destination "build\Release\steam_api64.dll" -Force
 
-    - name: 5. 【核弹】重写 CMakeLists.txt
+    - name: 5. 重写 CMakeLists.txt (移除报错的asio组件)
       shell: powershell
       run: |
-        # 我们不再修补原来的烂代码，直接覆盖写入一个新的，逻辑清晰的构建文件
         $cmakeContent = @"
         cmake_minimum_required(VERSION 3.15)
         project(ConnectTool)
@@ -83,41 +75,37 @@ jobs:
         # 1. 查找依赖
         find_package(glfw3 CONFIG REQUIRED)
         find_package(imgui CONFIG REQUIRED)
-        find_package(Boost REQUIRED COMPONENTS system thread date_time regex asio)
+        # 修正：移除了 'asio'，因为它不是库文件，只是头文件
+        find_package(Boost REQUIRED COMPONENTS system thread date_time regex)
 
         # 2. 收集源文件
         file(GLOB_RECURSE SOURCES "net/*.cpp" "steam/*.cpp" "online_game_tool.cpp")
 
         add_executable(ConnectTool `$`{SOURCES})
 
-        # 3. 设置头文件包含路径
+        # 3. 设置头文件
         target_include_directories(ConnectTool PRIVATE
-            `$`{CMAKE_CURRENT_SOURCE_DIR}/nanoid_root           # Nanoid
-            `$`{CMAKE_CURRENT_SOURCE_DIR}/steam_sdk/public      # Steam SDK
+            `$`{CMAKE_CURRENT_SOURCE_DIR}/nanoid_root
+            `$`{CMAKE_CURRENT_SOURCE_DIR}/steam_sdk/public
         )
 
-        # 4. 链接库文件 (这是解决 LNK2019 的关键)
+        # 4. 链接库
         target_link_libraries(ConnectTool PRIVATE
             imgui::imgui
             glfw
             Boost::system Boost::thread Boost::date_time Boost::regex
-            # 强制链接 Steam Lib
             `$`{CMAKE_CURRENT_SOURCE_DIR}/steam_sdk/lib/steam_api64.lib
-            ws2_32 # Windows Socket 库
+            ws2_32
         )
-        
-        # 5. 复制 DLL 到输出目录 (方便调试)
-        file(COPY `$`{CMAKE_CURRENT_SOURCE_DIR}/steam_sdk/lib/steam_api64.lib DESTINATION `$`{CMAKE_BINARY_DIR}/Release)
         "@
         
         Set-Content -Path "CMakeLists.txt" -Value $cmakeContent
-        Write-Output "CMakeLists.txt has been rewritten from scratch!"
+        Write-Output "CMakeLists.txt rewritten (fixed Boost components)."
 
     - name: 6. 编译项目
       run: |
         New-Item -ItemType Directory -Force -Path "build"
         cd build
-        # 此时我们的 CMakeLists 已经是完美的了，不需要额外的怪异参数
         cmd /c "cmake .. -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows"
         cmd /c "cmake --build . --config Release"
 
