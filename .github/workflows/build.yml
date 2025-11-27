@@ -1,4 +1,4 @@
-name: 最终验证通过版-生成EXE
+name: 外科手术修复版-生成EXE
 on: workflow_dispatch
 
 jobs:
@@ -10,32 +10,24 @@ jobs:
       with:
         submodules: recursive
 
-    # 1. 准备 Vcpkg (C++包管理器)
-    - name: Setup vcpkg
+    - name: 1. 准备环境 (vcpkg)
       run: |
         git clone https://github.com/Microsoft/vcpkg.git
         .\vcpkg\bootstrap-vcpkg.bat
 
-    # 2. 安装所有依赖库
-    # 这里安装了: GLFW3 (窗口), ImGui (界面+绑定), Boost (网络/系统)
-    - name: Install Dependencies
+    - name: 2. 安装依赖 (ImGui, GLFW, Boost)
       run: .\vcpkg\vcpkg install glfw3:x64-windows imgui[core,glfw-binding,opengl3-binding]:x64-windows boost-asio boost-system boost-thread boost-date-time boost-regex:x64-windows
 
-    # 3. 现场生成 Nanoid 库 (无需下载)
-    # 直接将标准的 Nanoid C++ 实现写入文件，彻底杜绝网络 404 错误
-    - name: Generate Nanoid Header
+    - name: 3. 现场手搓 Nanoid
       shell: powershell
       run: |
         New-Item -ItemType Directory -Force -Path "nanoid_root\nanoid"
-        
         $code = @"
         #pragma once
         #include <string>
         #include <random>
-        
         namespace nanoid {
             static const std::string _default_dict = "_-0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
-            
             inline std::string generate(int size = 21) {
                 if (size <= 0) return "";
                 std::random_device rd;
@@ -43,59 +35,58 @@ jobs:
                 std::uniform_int_distribution<> dis(0, 63);
                 std::string res;
                 res.reserve(size);
-                for (int i = 0; i < size; ++i) {
-                    res += _default_dict[dis(gen)];
-                }
+                for (int i = 0; i < size; ++i) { res += _default_dict[dis(gen)]; }
                 return res;
             }
         }
         "@
-        
         Set-Content -Path "nanoid_root\nanoid\nanoid.h" -Value $code
-        Write-Output "Nanoid.h created."
 
-    # 4. 下载并部署 Steam SDK
-    # 使用你的稳定直链 + 智能搜索策略
-    - name: Deploy Steam SDK
+    - name: 4. 部署 Steam SDK 并 修复 CMakeLists.txt
       shell: powershell
       run: |
+        # --- 下载 SDK ---
         $url = "https://github.com/bwwq/test/raw/main/steamworks_sdk_163.zip"
-        
-        Write-Output "Downloading SDK..."
         Invoke-WebRequest -Uri $url -OutFile "sdk.zip" -ErrorAction Stop
         if ((Get-Item "sdk.zip").Length -lt 1000) { throw "SDK file invalid" }
-
+        
+        # 解压
         Expand-Archive -Path "sdk.zip" -DestinationPath "temp_sdk" -Force
+        
+        # --- 还原官方结构 (Project Root/steamworks) ---
+        # 找到包含 'public' 文件夹的那一层，把它重命名为 steamworks 放在根目录
+        $root = Get-ChildItem -Path "temp_sdk" -Recurse -Filter "public" | Select-Object -First 1
+        Move-Item -Path $root.Parent.FullName -Destination ".\steamworks" -Force
+        
+        # --- 这里的关键：把 steam_api64.dll 复制出来备用 ---
+        New-Item -ItemType Directory -Force -Path "build\Release"
+        $dll = Get-ChildItem -Path "steamworks" -Recurse -Filter "steam_api64.dll" | Select-Object -First 1
+        Copy-Item -Path $dll.FullName -Destination "build\Release" -Force
 
-        # 创建目标文件夹
-        New-Item -ItemType Directory -Force -Path "steam"
-        New-Item -ItemType Directory -Force -Path "lib"
-        New-Item -ItemType Directory -Force -Path "build/Release"
+        # --- 【外科手术】修改 CMakeLists.txt ---
+        Write-Output "Patching CMakeLists.txt to remove macOS garbage..."
+        
+        # 读取文件
+        $cmake = Get-Content "CMakeLists.txt"
+        
+        # 过滤掉包含 .dylib 或 osx 的行 (这些行会导致 Windows 链接失败)
+        $clean_cmake = $cmake | Where-Object { $_ -notmatch "\.dylib" -and $_ -notmatch "/osx/" }
+        
+        # 写回文件
+        $clean_cmake | Set-Content "CMakeLists.txt"
+        
+        Write-Output "Patch applied. CMakeLists.txt is now Windows-clean."
 
-        # 智能查找并复制文件 (不管解压出来几层目录，都能找到)
-        $header = Get-ChildItem -Path "temp_sdk" -Recurse -Filter "steam_api.h" | Select-Object -First 1
-        if ($header) { Copy-Item -Path "$($header.DirectoryName)/*.h" -Destination "steam" -Force } else { throw "Missing steam_api.h" }
-
-        $lib = Get-ChildItem -Path "temp_sdk" -Recurse -Filter "steam_api64.lib" | Select-Object -First 1
-        if ($lib) { 
-            Copy-Item -Path $lib.FullName -Destination "lib" -Force 
-            Copy-Item -Path $lib.FullName -Destination "steam" -Force 
-        } else { throw "Missing steam_api64.lib" }
-
-        $dll = Get-ChildItem -Path "temp_sdk" -Recurse -Filter "steam_api64.dll" | Select-Object -First 1
-        if ($dll) { Copy-Item -Path $dll.FullName -Destination "build/Release" -Force } else { throw "Missing steam_api64.dll" }
-
-    # 5. 编译项目
-    # 包含了 /I 指向所有头文件目录，并开启了 /EHsc 异常处理
-    - name: Build Project
+    - name: 5. 编译项目
       run: |
         New-Item -ItemType Directory -Force -Path "build"
         cd build
-        cmd /c "cmake .. -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows -DCMAKE_CXX_FLAGS=""/I ../vcpkg/installed/x64-windows/include /I ../steam /I ../nanoid_root /EHsc"""
+        # 此时有了 steamworks 文件夹，原项目的 include 路径应该能生效
+        # 但为了保险，我们依然强制加上 /I 参数指向我们整理好的路径
+        cmd /c "cmake .. -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows -DCMAKE_CXX_FLAGS=""/I ../vcpkg/installed/x64-windows/include /I ../steamworks/public /I ../nanoid_root /EHsc"""
         cmd /c "cmake --build . --config Release"
 
-    # 6. 打包上传
-    - name: Upload Artifact
+    - name: 6. 上传成品
       uses: actions/upload-artifact@v4
       with:
         name: ConnectTool-Windows
