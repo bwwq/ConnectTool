@@ -64,7 +64,7 @@ jobs:
         $dllFile = Get-ChildItem -Path "steam_sdk_raw" -Recurse -Filter "steam_api64.dll" | Select-Object -First 1
         Copy-Item -Path $dllFile.FullName -Destination "build\Release\steam_api64.dll" -Force
 
-    - name: 5. 重写 CMakeLists.txt (修正路径)
+    - name: 5. 重写 CMakeLists.txt (修正路径与OpenGL)
       shell: powershell
       run: |
         $cmakeContent = @"
@@ -79,6 +79,7 @@ jobs:
         find_package(glfw3 CONFIG REQUIRED)
         find_package(imgui CONFIG REQUIRED)
         find_package(Boost REQUIRED COMPONENTS system thread date_time regex)
+        find_package(OpenGL REQUIRED)  # <--- 关键修正1：查找 OpenGL
 
         # 2. 收集源文件
         file(GLOB_RECURSE SOURCES "net/*.cpp" "steam/*.cpp" "online_game_tool.cpp")
@@ -87,7 +88,7 @@ jobs:
 
         # 3. 设置头文件
         target_include_directories(ConnectTool PRIVATE
-            `$`{CMAKE_CURRENT_SOURCE_DIR}             # 允许 include "net/xxx.h" 或 "steam/xxx.h"
+            `$`{CMAKE_CURRENT_SOURCE_DIR}             # 允许 include "net/xxx.h"
             `$`{CMAKE_CURRENT_SOURCE_DIR}/net         # 允许直接 include "tcp_server.h"
             `$`{CMAKE_CURRENT_SOURCE_DIR}/nanoid_root
             `$`{CMAKE_CURRENT_SOURCE_DIR}/steam_sdk/public/steam
@@ -100,11 +101,12 @@ jobs:
             Boost::system Boost::thread Boost::date_time Boost::regex
             `$`{CMAKE_CURRENT_SOURCE_DIR}/steam_sdk/lib/steam_api64.lib
             ws2_32
+            OpenGL::GL  # <--- 关键修正2：链接 OpenGL
         )
         "@
         
         Set-Content -Path "CMakeLists.txt" -Value $cmakeContent
-        Write-Output "CMakeLists.txt rewritten (fixed include paths and WINNT definition)."
+        Write-Output "CMakeLists.txt rewritten (fixed include paths, WINNT, and OpenGL)."
 
     - name: 6. 编译项目
       run: |
