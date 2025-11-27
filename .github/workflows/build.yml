@@ -1,4 +1,4 @@
-name: 最终修复-生成EXE
+name: 最终决战补全版-生成EXE
 on: workflow_dispatch
 
 jobs:
@@ -15,31 +15,26 @@ jobs:
         git clone https://github.com/Microsoft/vcpkg.git
         .\vcpkg\bootstrap-vcpkg.bat
 
-    - name: 2. 安装所有依赖 (含GLFW3)
-      # 重点修复：补全了 glfw3，这是上次报错的根源
-      run: .\vcpkg\vcpkg install glfw3:x64-windows boost-asio boost-system boost-thread boost-date-time boost-regex:x64-windows
+    - name: 2. 安装所有依赖 (补全了ImGui和Nanoid)
+      # 【关键修改】这里增加了 imgui (带opengl3和glfw绑定) 和 nanoid
+      run: .\vcpkg\vcpkg install glfw3:x64-windows nanoid:x64-windows imgui[core,glfw-binding,opengl3-binding]:x64-windows boost-asio boost-system boost-thread boost-date-time boost-regex:x64-windows
 
     - name: 3. 下载并部署 Steam SDK
       shell: powershell
       run: |
-        # 使用你的直链
         $url = "https://github.com/bwwq/test/raw/main/steamworks_sdk_163.zip"
         
         Write-Output "Downloading SDK..."
         Invoke-WebRequest -Uri $url -OutFile "sdk.zip" -ErrorAction Stop
 
-        # 校验文件
         if ((Get-Item "sdk.zip").Length -lt 1000) { throw "Critical: Downloaded file is too small!" }
 
-        # 解压
         Expand-Archive -Path "sdk.zip" -DestinationPath "temp_sdk" -Force
 
-        # 创建目录结构
         New-Item -ItemType Directory -Force -Path "steam"
         New-Item -ItemType Directory -Force -Path "lib"
         New-Item -ItemType Directory -Force -Path "build/Release"
 
-        # 暴力搜索并归位文件 (防止目录结构差异)
         $header = Get-ChildItem -Path "temp_sdk" -Recurse -Filter "steam_api.h" | Select-Object -First 1
         if ($header) { Copy-Item -Path "$($header.DirectoryName)/*.h" -Destination "steam" -Force } else { throw "Missing steam_api.h" }
 
@@ -53,11 +48,11 @@ jobs:
         if ($dll) { Copy-Item -Path $dll.FullName -Destination "build/Release" -Force } else { throw "Missing steam_api64.dll" }
 
     - name: 4. 编译项目
-      # 重点修复：使用 cmd /c 绕过 PowerShell 参数解析问题，并强制指定头文件路径
+      # 【关键修改】增加了 /EHsc 参数来修复编译警告
       run: |
         New-Item -ItemType Directory -Force -Path "build"
         cd build
-        cmd /c "cmake .. -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows -DCMAKE_CXX_FLAGS=""/I ../vcpkg/installed/x64-windows/include /I ../steam"""
+        cmd /c "cmake .. -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows -DCMAKE_CXX_FLAGS=""/I ../vcpkg/installed/x64-windows/include /I ../steam /EHsc"""
         cmd /c "cmake --build . --config Release"
 
     - name: 5. 上传成品
