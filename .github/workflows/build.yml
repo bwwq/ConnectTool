@@ -1,4 +1,4 @@
-name: 最终决战补全版-生成EXE
+name: 真的可以了-生成EXE
 on: workflow_dispatch
 
 jobs:
@@ -15,19 +15,24 @@ jobs:
         git clone https://github.com/Microsoft/vcpkg.git
         .\vcpkg\bootstrap-vcpkg.bat
 
-    - name: 2. 安装所有依赖 (补全了ImGui和Nanoid)
-      # 【关键修改】这里增加了 imgui (带opengl3和glfw绑定) 和 nanoid
-      run: .\vcpkg\vcpkg install glfw3:x64-windows nanoid:x64-windows imgui[core,glfw-binding,opengl3-binding]:x64-windows boost-asio boost-system boost-thread boost-date-time boost-regex:x64-windows
+    - name: 2. 安装主流依赖
+      # 【修正】去掉了报错的 nanoid，保留其他所有必须库
+      run: .\vcpkg\vcpkg install glfw3:x64-windows imgui[core,glfw-binding,opengl3-binding]:x64-windows boost-asio boost-system boost-thread boost-date-time boost-regex:x64-windows
 
-    - name: 3. 下载并部署 Steam SDK
+    - name: 3. 手动下载 Nanoid (补全缺失的库)
+      shell: powershell
+      run: |
+        # Nanoid 不在 vcpkg 里，我们手动下载它的 C++ 实现
+        git clone https://github.com/mcmxc/nanoid.cpp.git nanoid_lib
+
+    - name: 4. 下载并部署 Steam SDK
       shell: powershell
       run: |
         $url = "https://github.com/bwwq/test/raw/main/steamworks_sdk_163.zip"
         
         Write-Output "Downloading SDK..."
         Invoke-WebRequest -Uri $url -OutFile "sdk.zip" -ErrorAction Stop
-
-        if ((Get-Item "sdk.zip").Length -lt 1000) { throw "Critical: Downloaded file is too small!" }
+        if ((Get-Item "sdk.zip").Length -lt 1000) { throw "Download failed" }
 
         Expand-Archive -Path "sdk.zip" -DestinationPath "temp_sdk" -Force
 
@@ -47,15 +52,15 @@ jobs:
         $dll = Get-ChildItem -Path "temp_sdk" -Recurse -Filter "steam_api64.dll" | Select-Object -First 1
         if ($dll) { Copy-Item -Path $dll.FullName -Destination "build/Release" -Force } else { throw "Missing steam_api64.dll" }
 
-    - name: 4. 编译项目
-      # 【关键修改】增加了 /EHsc 参数来修复编译警告
+    - name: 5. 编译项目
+      # 【关键修正】添加了 /I ../nanoid_lib/include 让编译器能找到 nanoid
       run: |
         New-Item -ItemType Directory -Force -Path "build"
         cd build
-        cmd /c "cmake .. -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows -DCMAKE_CXX_FLAGS=""/I ../vcpkg/installed/x64-windows/include /I ../steam /EHsc"""
+        cmd /c "cmake .. -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows -DCMAKE_CXX_FLAGS=""/I ../vcpkg/installed/x64-windows/include /I ../steam /I ../nanoid_lib/include /EHsc"""
         cmd /c "cmake --build . --config Release"
 
-    - name: 5. 上传成品
+    - name: 6. 上传成品
       uses: actions/upload-artifact@v4
       with:
         name: ConnectTool-Windows
