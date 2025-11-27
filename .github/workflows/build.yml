@@ -64,7 +64,7 @@ jobs:
         $dllFile = Get-ChildItem -Path "steam_sdk_raw" -Recurse -Filter "steam_api64.dll" | Select-Object -First 1
         Copy-Item -Path $dllFile.FullName -Destination "build\Release\steam_api64.dll" -Force
 
-    - name: 5. 重写 CMakeLists.txt (移除报错的asio组件)
+    - name: 5. 重写 CMakeLists.txt (修正路径)
       shell: powershell
       run: |
         $cmakeContent = @"
@@ -86,7 +86,7 @@ jobs:
         # 3. 设置头文件
         target_include_directories(ConnectTool PRIVATE
             `$`{CMAKE_CURRENT_SOURCE_DIR}/nanoid_root
-            `$`{CMAKE_CURRENT_SOURCE_DIR}/steam_sdk/public
+            `$`{CMAKE_CURRENT_SOURCE_DIR}/steam_sdk/public/steam
         )
 
         # 4. 链接库
@@ -100,7 +100,7 @@ jobs:
         "@
         
         Set-Content -Path "CMakeLists.txt" -Value $cmakeContent
-        Write-Output "CMakeLists.txt rewritten (fixed Boost components)."
+        Write-Output "CMakeLists.txt rewritten (fixed include paths)."
 
     - name: 6. 编译项目
       run: |
