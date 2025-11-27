@@ -1,4 +1,4 @@
-name: 最终修正版-生成EXE
+name: 最终修复-生成EXE
 on: workflow_dispatch
 
 jobs:
@@ -10,51 +10,57 @@ jobs:
       with:
         submodules: recursive
 
-    - name: Setup vcpkg
+    - name: 1. 准备环境 (vcpkg)
       run: |
         git clone https://github.com/Microsoft/vcpkg.git
         .\vcpkg\bootstrap-vcpkg.bat
 
-    - name: Install Boost
-      run: .\vcpkg\vcpkg install boost-asio boost-system boost-thread boost-date-time boost-regex:x64-windows
+    - name: 2. 安装所有依赖 (含GLFW3)
+      # 重点修复：补全了 glfw3，这是上次报错的根源
+      run: .\vcpkg\vcpkg install glfw3:x64-windows boost-asio boost-system boost-thread boost-date-time boost-regex:x64-windows
 
-    - name: Download SDK from User Repo
+    - name: 3. 下载并部署 Steam SDK
       shell: powershell
       run: |
+        # 使用你的直链
         $url = "https://github.com/bwwq/test/raw/main/steamworks_sdk_163.zip"
         
         Write-Output "Downloading SDK..."
         Invoke-WebRequest -Uri $url -OutFile "sdk.zip" -ErrorAction Stop
 
-        if ((Get-Item "sdk.zip").Length -lt 1000) { throw "Download failed/file too small" }
+        # 校验文件
+        if ((Get-Item "sdk.zip").Length -lt 1000) { throw "Critical: Downloaded file is too small!" }
 
+        # 解压
         Expand-Archive -Path "sdk.zip" -DestinationPath "temp_sdk" -Force
 
+        # 创建目录结构
         New-Item -ItemType Directory -Force -Path "steam"
         New-Item -ItemType Directory -Force -Path "lib"
         New-Item -ItemType Directory -Force -Path "build/Release"
 
+        # 暴力搜索并归位文件 (防止目录结构差异)
         $header = Get-ChildItem -Path "temp_sdk" -Recurse -Filter "steam_api.h" | Select-Object -First 1
-        if ($header) { Copy-Item -Path "$($header.DirectoryName)/*.h" -Destination "steam" -Force }
+        if ($header) { Copy-Item -Path "$($header.DirectoryName)/*.h" -Destination "steam" -Force } else { throw "Missing steam_api.h" }
 
         $lib = Get-ChildItem -Path "temp_sdk" -Recurse -Filter "steam_api64.lib" | Select-Object -First 1
         if ($lib) { 
             Copy-Item -Path $lib.FullName -Destination "lib" -Force 
             Copy-Item -Path $lib.FullName -Destination "steam" -Force 
-        }
+        } else { throw "Missing steam_api64.lib" }
 
         $dll = Get-ChildItem -Path "temp_sdk" -Recurse -Filter "steam_api64.dll" | Select-Object -First 1
-        if ($dll) { Copy-Item -Path $dll.FullName -Destination "build/Release" -Force }
+        if ($dll) { Copy-Item -Path $dll.FullName -Destination "build/Release" -Force } else { throw "Missing steam_api64.dll" }
 
-    - name: Build Project
-      # 【修正点】这里加了 -Force，文件夹存在也不会报错了
+    - name: 4. 编译项目
+      # 重点修复：使用 cmd /c 绕过 PowerShell 参数解析问题，并强制指定头文件路径
       run: |
         New-Item -ItemType Directory -Force -Path "build"
         cd build
-        cmake .. -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows -DCMAKE_CXX_FLAGS="-I../vcpkg/installed/x64-windows/include"
-        cmake --build . --config Release
+        cmd /c "cmake .. -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows -DCMAKE_CXX_FLAGS=""/I ../vcpkg/installed/x64-windows/include /I ../steam"""
+        cmd /c "cmake --build . --config Release"
 
-    - name: Upload Artifact
+    - name: 5. 上传成品
       uses: actions/upload-artifact@v4
       with:
         name: ConnectTool-Windows
