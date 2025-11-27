@@ -1,4 +1,4 @@
-name: 稳如老狗版-生成EXE
+name: 最终决战版-生成EXE
 on: workflow_dispatch
 
 jobs:
@@ -16,71 +16,46 @@ jobs:
         git clone https://github.com/Microsoft/vcpkg.git
         .\vcpkg\bootstrap-vcpkg.bat
 
-    # 2. 安装 Boost (这步最慢，约5-8分钟，请耐心)
+    # 2. 安装 Boost (这步最慢，耐心等待)
     - name: Install Boost Dependencies
       run: .\vcpkg\vcpkg install boost-asio boost-system boost-thread boost-date-time boost-regex:x64-windows
 
-    # 3. 【双重保险】下载 Steamworks SDK
+    # 3. 下载 SDK (使用精简的单行逻辑，防止语法错误)
     - name: Clone Steamworks SDK
       shell: powershell
       run: |
-        # 尝试首选镜像源 (Dummiesman)
-        Write-Host "正在尝试下载 Dummiesman 镜像..."
-        git clone --depth 1 https://github.com/Dummiesman/Steamworks-SDK.git temp_sdk
+        # 尝试下载，如果失败则尝试备用源，所有逻辑写在一行
+        git clone --depth 1 https://github.com/Dummiesman/Steamworks-SDK.git temp_sdk; if (-not (Test-Path "temp_sdk")) { git clone --depth 1 https://github.com/Metapyziks/Steamworks-SDK.git temp_sdk }
         
-        # 如果首选失败，尝试备用源 (Metapyziks)
-        if (-not (Test-Path "temp_sdk")) {
-             Write-Host "首选失败，尝试备用镜像 Metapyziks..."
-             git clone --depth 1 https://github.com/Metapyziks/Steamworks-SDK.git temp_sdk
-        }
+        # 检查是否成功
+        if (-not (Test-Path "temp_sdk")) { Write-Error "SDK下载失败"; exit 1 }
 
-        # 检查是否真的下载下来了
-        if (-not (Test-Path "temp_sdk")) {
-            Write-Error "所有镜像源都挂了，这运气没谁了..."
-            exit 1
-        }
-        
-        # --- 开始搬运文件 ---
-        
-        # 1. 创建目录
+        # 建立目录
         New-Item -ItemType Directory -Force -Path ".\steam"
         New-Item -ItemType Directory -Force -Path ".\lib"
         New-Item -ItemType Directory -Force -Path ".\build\Release"
-        
-        # 2. 复制头文件 (*.h)
-        # 结构通常是 temp_sdk/public/steam
-        Copy-Item -Path ".\temp_sdk\public\steam\*.h" -Destination ".\steam\" -Force
-        
-        # 3. 复制库文件 (.lib)
-        # 寻找 steam_api64.lib，通常在 redistributable_bin/win64
-        $libPath = Get-ChildItem -Path ".\temp_sdk" -Recurse -Filter "steam_api64.lib" | Select-Object -First 1
-        if ($libPath) {
-            Copy-Item -Path $libPath.FullName -Destination ".\lib\" -Force
-            Copy-Item -Path $libPath.FullName -Destination ".\steam\" -Force
-            Write-Host "成功找到并复制 lib 文件"
-        } else {
-            Write-Error "在SDK里找不到 steam_api64.lib，结构可能变了"
-        }
 
-        # 4. 复制运行库 (.dll) - 这是最后运行必须的
-        $dllPath = Get-ChildItem -Path ".\temp_sdk" -Recurse -Filter "steam_api64.dll" | Select-Object -First 1
-        if ($dllPath) {
-            Copy-Item -Path $dllPath.FullName -Destination ".\build\Release\" -Force
-            Write-Host "成功找到并复制 dll 文件"
-        }
+        # 暴力复制所有可能的头文件到 steam 目录
+        Get-ChildItem -Path ".\temp_sdk" -Recurse -Filter "*.h" | Copy-Item -Destination ".\steam\" -Force
+
+        # 暴力搜索并复制 lib 文件
+        Get-ChildItem -Path ".\temp_sdk" -Recurse -Filter "steam_api64.lib" | Select-Object -First 1 | Copy-Item -Destination ".\lib\" -Force
+        Get-ChildItem -Path ".\temp_sdk" -Recurse -Filter "steam_api64.lib" | Select-Object -First 1 | Copy-Item -Destination ".\steam\" -Force
+
+        # 暴力搜索并复制 dll 文件
+        Get-ChildItem -Path ".\temp_sdk" -Recurse -Filter "steam_api64.dll" | Select-Object -First 1 | Copy-Item -Destination ".\build\Release\" -Force
 
     # 4. 编译
     - name: Build
       run: |
         mkdir build
         cd build
-        # 强制包含路径
         cmake .. -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows -DCMAKE_CXX_FLAGS="-I../vcpkg/installed/x64-windows/include"
         cmake --build . --config Release
 
-    # 5. 打包上传
+    # 5. 上传
     - name: Upload EXE
       uses: actions/upload-artifact@v4
       with:
-        name: ConnectTool-Windows
+        name: ConnectTool-Final
         path: build/Release/*
