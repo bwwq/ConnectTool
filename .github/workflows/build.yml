@@ -72,10 +72,12 @@ jobs:
         project(ConnectTool)
         set(CMAKE_CXX_STANDARD 17)
 
+        # 消除 Boost 关于 Windows 版本的警告
+        add_definitions(-D_WIN32_WINNT=0x0601)
+
         # 1. 查找依赖
         find_package(glfw3 CONFIG REQUIRED)
         find_package(imgui CONFIG REQUIRED)
-        # 修正：移除了 'asio'，因为它不是库文件，只是头文件
         find_package(Boost REQUIRED COMPONENTS system thread date_time regex)
 
         # 2. 收集源文件
@@ -85,6 +87,8 @@ jobs:
 
         # 3. 设置头文件
         target_include_directories(ConnectTool PRIVATE
+            `$`{CMAKE_CURRENT_SOURCE_DIR}             # 允许 include "net/xxx.h" 或 "steam/xxx.h"
+            `$`{CMAKE_CURRENT_SOURCE_DIR}/net         # 允许直接 include "tcp_server.h"
             `$`{CMAKE_CURRENT_SOURCE_DIR}/nanoid_root
             `$`{CMAKE_CURRENT_SOURCE_DIR}/steam_sdk/public/steam
         )
@@ -100,7 +104,7 @@ jobs:
         "@
         
         Set-Content -Path "CMakeLists.txt" -Value $cmakeContent
-        Write-Output "CMakeLists.txt rewritten (fixed include paths)."
+        Write-Output "CMakeLists.txt rewritten (fixed include paths and WINNT definition)."
 
     - name: 6. 编译项目
       run: |
