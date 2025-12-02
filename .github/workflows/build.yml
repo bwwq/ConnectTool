@@ -49,7 +49,7 @@ jobs:
       run: |
         New-Item -ItemType Directory -Force -Path "build"
         cd build
-        cmake .. -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows
+        cmake .. "-DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake" "-DVCPKG_TARGET_TRIPLET=x64-windows"
         cmake --build . --config Release
 
     - name: 5. 上传成品
