@@ -55,8 +55,12 @@ jobs:
         # 复制 vcpkg 依赖的 DLL
         Copy-Item -Path "${{ github.workspace }}\vcpkg\installed\x64-windows\bin\*.dll" -Destination "Release" -Force
         
-        # 复制字体文件
-        Copy-Item -Path "${{ github.workspace }}\font.ttf" -Destination "Release\font.ttf" -Force
+        # 复制字体文件 (如果存在)
+        if (Test-Path "${{ github.workspace }}\font.ttf") {
+            Copy-Item -Path "${{ github.workspace }}\font.ttf" -Destination "Release\font.ttf" -Force
+        } else {
+            Write-Warning "font.ttf not found in repository root. The application will use default font."
+        }
 
     - name: 5. 上传成品
       uses: actions/upload-artifact@v4
