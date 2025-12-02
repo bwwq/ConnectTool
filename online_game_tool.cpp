@@ -3,6 +3,7 @@
 #include "steam/steam_utils.h"
 #include "tcp_server.h"
 #include <filesystem>
+#include <fstream>
 #include "ui/ui_theme.h"
 #include "ui/ui_components.h"
 #include "config/config_manager.h"
@@ -180,16 +181,25 @@ void cleanupSingleInstance() {
 #endif
 
 int main() {
+  try {
   // Check for single instance
   if (!checkSingleInstance()) {
     std::cout << "另一个实例已在运行，正在激活该窗口..." << std::endl;
     return 0;
   }
 
+
   // Initialize Steam API first
   if (!SteamAPI_Init()) {
     std::cerr << "Failed to initialize Steam API" << std::endl;
-    return 1;
+    // Create steam_appid.txt if not exists (dev only)
+    std::ofstream appid("steam_appid.txt");
+    appid << "480";
+    appid.close();
+    if (!SteamAPI_Init()) {
+        MessageBoxA(nullptr, "Failed to initialize Steam API. Make sure Steam is running.", "Error", MB_OK | MB_ICONERROR);
+        return 1;
+    }
   }
 
   boost::asio::io_context io_context;
@@ -200,6 +210,7 @@ int main() {
   SteamNetworkingManager steamManager;
   if (!steamManager.initialize()) {
     std::cerr << "Failed to initialize Steam Networking Manager" << std::endl;
+    system("pause");
     SteamAPI_Shutdown();
     return 1;
   }
@@ -210,6 +221,7 @@ int main() {
   // Initialize GLFW
   if (!glfwInit()) {
     std::cerr << "Failed to initialize GLFW" << std::endl;
+    system("pause");
     steamManager.shutdown();
     return -1;
   }
@@ -225,7 +237,8 @@ int main() {
   GLFWwindow *window =
       glfwCreateWindow(1280, 720, "在线游戏工具 - 1.0.0", nullptr, nullptr);
   if (!window) {
-    std::cerr << "Failed to create GLFW window" << std::endl;
+    std::cerr << "Failed to initialize GLFW" << std::endl;
+    system("pause");
     glfwTerminate();
     cleanupSingleInstance();
     SteamAPI_Shutdown();
@@ -636,5 +649,17 @@ int main() {
   // Cleanup single instance resources
   cleanupSingleInstance();
 
+  }
+  catch (const std::exception& e) {
+      std::cerr << "Unhandled exception: " << e.what() << std::endl;
+      MessageBoxA(nullptr, e.what(), "Crash Error", MB_OK | MB_ICONERROR);
+  }
+  catch (...) {
+      std::cerr << "Unknown unhandled exception" << std::endl;
+      MessageBoxA(nullptr, "Unknown Error", "Crash Error", MB_OK | MB_ICONERROR);
+  }
+  
+  std::cout << "Application finished" << std::endl;
+  system("pause");
   return 0;
 }
