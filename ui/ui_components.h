@@ -185,9 +185,8 @@ inline bool BeginCard(const char* label, const ImVec2& size = ImVec2(0, 0)) {
     ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 6.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_ChildBorderSize, 1.0f);
     
-    bool result = ImGui::BeginChild(label, size, true);
-    
-    return result;
+    ImGui::BeginChild(label, size, true);
+    return true;
 }
 
 inline void EndCard() {
