@@ -1,0 +1,59 @@
+name: 修正组件版-生成EXE
+on: 
+  workflow_dispatch:
+  push:
+    branches: [ main, master ]
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: recursive
+
+    - name: 1. 准备环境 (vcpkg)
+      run: |
+        git clone https://github.com/Microsoft/vcpkg.git
+        .\vcpkg\bootstrap-vcpkg.bat
+
+    - name: 2. 安装依赖 (ImGui, GLFW, Boost)
+      run: .\vcpkg\vcpkg install glfw3:x64-windows imgui[core,glfw-binding,opengl3-binding]:x64-windows boost-asio boost-system boost-thread boost-date-time boost-regex:x64-windows
+
+    - name: 3. 部署 Steam SDK
+      shell: powershell
+      run: |
+        $url = "https://github.com/bwwq/test/raw/main/steamworks_sdk_163.zip"
+        Invoke-WebRequest -Uri $url -OutFile "sdk.zip" -ErrorAction Stop
+        
+        Expand-Archive -Path "sdk.zip" -DestinationPath "steam_sdk_raw" -Force
+        
+        # 创建目录结构
+        New-Item -ItemType Directory -Force -Path "steamworks\public\steam"
+        New-Item -ItemType Directory -Force -Path "steamworks\redistributable_bin\win64"
+        
+        # 复制头文件
+        $headerRoot = Get-ChildItem -Path "steam_sdk_raw" -Recurse -Filter "steam_api.h" | Select-Object -First 1
+        Copy-Item -Path "$($headerRoot.DirectoryName)\*.h" -Destination "steamworks\public\steam" -Force
+        
+        # 复制库文件 (lib)
+        $libFile = Get-ChildItem -Path "steam_sdk_raw" -Recurse -Filter "steam_api64.lib" | Select-Object -First 1
+        Copy-Item -Path $libFile.FullName -Destination "steamworks\redistributable_bin\win64\steam_api64.lib" -Force
+        
+        # 复制动态库 (dll)
+        $dllFile = Get-ChildItem -Path "steam_sdk_raw" -Recurse -Filter "steam_api64.dll" | Select-Object -First 1
+        Copy-Item -Path $dllFile.FullName -Destination "steamworks\redistributable_bin\win64\steam_api64.dll" -Force
+
+    - name: 4. 编译项目
+      run: |
+        New-Item -ItemType Directory -Force -Path "build"
+        cd build
+        cmake .. -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows
+        cmake --build . --config Release
+
+    - name: 5. 上传成品
+      uses: actions/upload-artifact@v4
+      with:
+        name: ConnectTool-Windows
+        path: build/Release/*
