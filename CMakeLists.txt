@@ -4,6 +4,10 @@ project(ConnectTool)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Preprocessor definitions
+add_definitions(-D_WIN32_WINNT=0x0601)
+add_definitions(-D_CRT_SECURE_NO_WARNINGS)
+
 # Find packages
 find_package(OpenGL REQUIRED)
 find_package(glfw3 REQUIRED)
