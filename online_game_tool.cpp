@@ -326,7 +326,7 @@ int main() {
       std::transform(filterStr.begin(), filterStr.end(), filterStr.begin(),
                      ::tolower);
       if (filterStr.empty() || nameStr.find(filterStr) != std::string::npos) {
-        ImGui::PushID(friendPair.first.ConvertToUint64());
+        ImGui::PushID(static_cast<int>(friendPair.first.ConvertToUint64() & 0xFFFFFFFF));
         if (ImGui::Button(("邀请 " + friendPair.second).c_str())) {
           // Send invite via Steam to lobby
           if (SteamMatchmaking()) {
@@ -384,7 +384,6 @@ int main() {
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(viewport->WorkPos);
     ImGui::SetNextWindowSize(viewport->WorkSize);
-    // ImGui::SetNextWindowViewport(viewport->ID); // Removed for compatibility with standard ImGui
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
     ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus;
@@ -569,7 +568,7 @@ int main() {
             std::transform(filterStr.begin(), filterStr.end(), filterStr.begin(), ::tolower);
             
             if (filterStr.empty() || nameStr.find(filterStr) != std::string::npos) {
-                ImGui::PushID(friendPair.first.ConvertToUint64());
+                ImGui::PushID(static_cast<int>(friendPair.first.ConvertToUint64() & 0xFFFFFFFF));
                 if (ImGui::Button(("邀请 " + friendPair.second).c_str())) {
                     if (SteamMatchmaking()) {
                         SteamMatchmaking()->InviteUserToLobby(roomManager.getCurrentLobby(), friendPair.first);

@@ -54,7 +54,7 @@ void TCPServer::sendToAll(const char* data, size_t size, std::shared_ptr<tcp::so
 
 int TCPServer::getClientCount() {
     std::lock_guard<std::mutex> lock(clientsMutex_);
-    return clients_.size();
+    return static_cast<int>(clients_.size());
 }
 
 void TCPServer::start_accept() {

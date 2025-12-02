@@ -71,7 +71,7 @@ void MultiplexManager::sendTunnelPacket(const std::string &id, const char *data,
     {
         std::memcpy(&packet[idLen + sizeof(uint32_t)], data, len);
     }
-    steamInterface_->SendMessageToConnection(steamConn_, packet.data(), packet.size(), k_nSteamNetworkingSend_Reliable, nullptr);
+    steamInterface_->SendMessageToConnection(steamConn_, packet.data(), static_cast<uint32>(packet.size()), k_nSteamNetworkingSend_Reliable, nullptr);
 }
 
 void MultiplexManager::handleTunnelPacket(const char *data, size_t len)
