@@ -12,10 +12,11 @@ add_definitions(-D_CRT_SECURE_NO_WARNINGS)
 find_package(OpenGL REQUIRED)
 find_package(glfw3 REQUIRED)
 find_package(Boost REQUIRED)
+find_package(imgui CONFIG REQUIRED)
 
 # Include directories
 include_directories(${CMAKE_SOURCE_DIR})
-include_directories(${CMAKE_SOURCE_DIR}/imgui)
+# include_directories(${CMAKE_SOURCE_DIR}/imgui) # Use vcpkg include
 include_directories(${CMAKE_SOURCE_DIR}/imgui/backends)
 include_directories(${CMAKE_SOURCE_DIR}/steamworks/public)
 include_directories(${CMAKE_SOURCE_DIR}/steamworks/public/steam)
@@ -26,7 +27,7 @@ include_directories(${CMAKE_SOURCE_DIR}/config)
 # Source files
 file(GLOB SOURCES
     "online_game_tool.cpp"
-    "imgui/*.cpp"
+    # "imgui/*.cpp" # Use vcpkg library
     "imgui/backends/imgui_impl_glfw.cpp"
     "imgui/backends/imgui_impl_opengl3.cpp"
     "net/*.cpp"
@@ -40,6 +41,7 @@ add_executable(ConnectTool ${SOURCES})
 # Link libraries
 if(WIN32)
     target_link_libraries(ConnectTool
+        imgui::imgui
         glfw
         OpenGL::GL
         Boost::headers
