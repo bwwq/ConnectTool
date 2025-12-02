@@ -2,6 +2,7 @@
 #include "steam/steam_room_manager.h"
 #include "steam/steam_utils.h"
 #include "tcp_server.h"
+#include <filesystem>
 #include "ui/ui_theme.h"
 #include "ui/ui_components.h"
 #include "config/config_manager.h"
@@ -251,9 +252,16 @@ int main() {
   float fontSize = appConfig.fontSize;
   
   // Load Chinese font
-  io.Fonts->AddFontFromFileTTF(
-      "font.ttf", fontSize, nullptr,
-      io.Fonts->GetGlyphRangesChineseSimplifiedCommon());
+  // Load Chinese font if exists, otherwise use default
+  if (std::filesystem::exists("font.ttf")) {
+      io.Fonts->AddFontFromFileTTF(
+          "font.ttf", fontSize, nullptr,
+          io.Fonts->GetGlyphRangesChineseSimplifiedCommon());
+  } else {
+      ImFontConfig config;
+      config.SizePixels = fontSize;
+      io.Fonts->AddFontDefault(&config);
+  }
       
   // Apply UI Theme
   UITheme::ApplyTheme();
