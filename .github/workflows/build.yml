@@ -61,6 +61,9 @@ jobs:
         } else {
             Write-Warning "font.ttf not found in repository root. The application will use default font."
         }
+        
+        # 复制 steam_appid.txt
+        Copy-Item -Path "${{ github.workspace }}\steam_appid.txt" -Destination "Release\steam_appid.txt" -Force
 
     - name: 5. 上传成品
       uses: actions/upload-artifact@v4
