@@ -1,5 +1,5 @@
-name: 修正组件版-生成EXE
-on: workflow_dispatch
+name: CLI版-生成EXE
+on: [push, workflow_dispatch]
 
 jobs:
   build-windows:
@@ -15,8 +15,8 @@ jobs:
         git clone https://github.com/Microsoft/vcpkg.git
         .\vcpkg\bootstrap-vcpkg.bat
 
-    - name: 2. 安装依赖 (ImGui, GLFW, Boost)
-      run: .\vcpkg\vcpkg install glfw3:x64-windows imgui[core,glfw-binding,opengl3-binding]:x64-windows boost-asio boost-system boost-thread boost-date-time boost-regex:x64-windows
+    - name: 2. 安装依赖 (Boost)
+      run: .\vcpkg\vcpkg install boost-asio boost-system boost-thread boost-date-time boost-regex:x64-windows
 
     - name: 3. 现场手搓 Nanoid
       shell: powershell
@@ -64,59 +64,15 @@ jobs:
         $dllFile = Get-ChildItem -Path "steam_sdk_raw" -Recurse -Filter "steam_api64.dll" | Select-Object -First 1
         Copy-Item -Path $dllFile.FullName -Destination "build\Release\steam_api64.dll" -Force
 
-    - name: 5. 重写 CMakeLists.txt (修正路径与OpenGL)
-      shell: powershell
-      run: |
-        $cmakeContent = @"
-        cmake_minimum_required(VERSION 3.15)
-        project(ConnectTool)
-        set(CMAKE_CXX_STANDARD 17)
-
-        # 消除 Boost 关于 Windows 版本的警告
-        add_definitions(-D_WIN32_WINNT=0x0601)
-
-        # 1. 查找依赖
-        find_package(glfw3 CONFIG REQUIRED)
-        find_package(imgui CONFIG REQUIRED)
-        find_package(Boost REQUIRED COMPONENTS system thread date_time regex)
-        find_package(OpenGL REQUIRED)  # <--- 关键修正1：查找 OpenGL
-
-        # 2. 收集源文件
-        file(GLOB_RECURSE SOURCES "net/*.cpp" "steam/*.cpp" "online_game_tool.cpp")
-
-        add_executable(ConnectTool `$`{SOURCES})
-
-        # 3. 设置头文件
-        target_include_directories(ConnectTool PRIVATE
-            `$`{CMAKE_CURRENT_SOURCE_DIR}             # 允许 include "net/xxx.h"
-            `$`{CMAKE_CURRENT_SOURCE_DIR}/net         # 允许直接 include "tcp_server.h"
-            `$`{CMAKE_CURRENT_SOURCE_DIR}/nanoid_root
-            `$`{CMAKE_CURRENT_SOURCE_DIR}/steam_sdk/public/steam
-        )
-
-        # 4. 链接库
-        target_link_libraries(ConnectTool PRIVATE
-            imgui::imgui
-            glfw
-            Boost::system Boost::thread Boost::date_time Boost::regex
-            `$`{CMAKE_CURRENT_SOURCE_DIR}/steam_sdk/lib/steam_api64.lib
-            ws2_32
-            OpenGL::GL  # <--- 关键修正2：链接 OpenGL
-        )
-        "@
-        
-        Set-Content -Path "CMakeLists.txt" -Value $cmakeContent
-        Write-Output "CMakeLists.txt rewritten (fixed include paths, WINNT, and OpenGL)."
-
-    - name: 6. 编译项目
+    - name: 5. 编译项目
       run: |
         New-Item -ItemType Directory -Force -Path "build"
         cd build
         cmd /c "cmake .. -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows"
         cmd /c "cmake --build . --config Release"
 
-    - name: 7. 上传成品
+    - name: 6. 上传成品
       uses: actions/upload-artifact@v4
       with:
-        name: ConnectTool-Windows
+        name: ConnectTool-Windows-CLI
         path: build/Release/*
