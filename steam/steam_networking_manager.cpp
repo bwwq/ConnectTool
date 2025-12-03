@@ -189,10 +189,11 @@ void SteamNetworkingManager::printRelayStatus()
     std::cout << std::endl;
     
     if (status.m_eAvail != k_ESteamNetworkingAvailability_Current) {
-        std::cout << "Debug Msg: " << status.m_szDebugMsg << std::endl;
+        // std::cout << "Debug Msg: " << status.m_szDebugMsg << std::endl; // Not available in this SDK version
         std::cout << "[提示] 如果状态不是 'Current (OK)'，请等待几分钟或检查网络。" << std::endl;
     } else {
-        std::cout << "Ping to Relay: " << status.m_nPingMeasurementFileBytes << " bytes config" << std::endl;
+        // std::cout << "Ping to Relay: " << status.m_nPingMeasurementFileBytes << " bytes config" << std::endl; // Not available
+        std::cout << "Relay Network Configured." << std::endl;
     }
 }
 
