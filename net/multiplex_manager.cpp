@@ -26,7 +26,7 @@ std::string MultiplexManager::addClient(std::shared_ptr<tcp::socket> socket)
         std::lock_guard<std::mutex> lock(mapMutex_);
         id = nanoid::generate(6);
         clientMap_[id] = socket;
-        readBuffers_[id].resize(1024);
+        readBuffers_[id].resize(16384);
     }
     startAsyncRead(id);
     std::cout << "Added client with id " << id << std::endl;
@@ -100,12 +100,13 @@ void MultiplexManager::handleTunnelPacket(const char *data, size_t len)
                 tcp::resolver resolver(io_context_);
                 auto endpoints = resolver.resolve("127.0.0.1", std::to_string(localPort_));
                 boost::asio::connect(*newSocket, endpoints);
+                newSocket->set_option(tcp::no_delay(true)); // Enable TCP NoDelay
 
                 std::string tempId = id;
                 {
                     std::lock_guard<std::mutex> lock(mapMutex_);
                     clientMap_[id] = newSocket;
-                    readBuffers_[id].resize(1024);
+                    readBuffers_[id].resize(16384);
                     socket = newSocket;
                 }
                 std::cout << "Successfully created TCP client for id " << id << std::endl;

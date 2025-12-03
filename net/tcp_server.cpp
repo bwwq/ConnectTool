@@ -58,13 +58,14 @@ void TCPServer::start_accept() {
     auto socket = std::make_shared<tcp::socket>(io_context_);
     acceptor_.async_accept(*socket, [this, socket](const boost::system::error_code& error) {
         if (!error) {
+            socket->set_option(tcp::no_delay(true)); // Enable TCP NoDelay
             auto multiplexManager = manager_->getMessageHandler()->getMultiplexManager(manager_->getConnection());
             std::string id = multiplexManager->addClient(socket);
             {
                 std::lock_guard<std::mutex> lock(clientsMutex_);
                 clients_.push_back(socket);
             }
-            start_read(socket, id);
+            // start_read(socket, id); // REMOVED: MultiplexManager handles reading. Preventing double-read race condition.
         }
         if (running_) {
             start_accept();
@@ -73,7 +74,7 @@ void TCPServer::start_accept() {
 }
 
 void TCPServer::start_read(std::shared_ptr<tcp::socket> socket, std::string id) {
-    auto buffer = std::make_shared<std::vector<char>>(1024);
+    auto buffer = std::make_shared<std::vector<char>>(16384); // Increased buffer size
     socket->async_read_some(boost::asio::buffer(*buffer), [this, socket, buffer, id](const boost::system::error_code& error, std::size_t bytes_transferred) {
         if (!error) {
             if (manager_->isConnected()) {
