@@ -1,6 +1,7 @@
 #include "steam_networking_manager.h"
 #include <iostream>
 #include <algorithm>
+#include <sstream>
 
 SteamNetworkingManager *SteamNetworkingManager::instance = nullptr;
 
@@ -239,7 +240,11 @@ void SteamNetworkingManager::handleConnectionStatusChanged(SteamNetConnectionSta
     if (pInfo->m_info.m_eState == k_ESteamNetworkingConnectionState_ProblemDetectedLocally)
     {
         // Connection failed
-        m_lastError = "连接失败: " + std::string(pInfo->m_info.m_szEndDebug);
+        std::stringstream ss;
+        ss << "连接失败: " << pInfo->m_info.m_szEndDebug 
+           << " [代码: " << pInfo->m_info.m_eEndReason << "]"
+           << " [描述: " << pInfo->m_info.m_szConnectionDescription << "]";
+        m_lastError = ss.str();
     }
     if (pInfo->m_eOldState == k_ESteamNetworkingConnectionState_None && pInfo->m_info.m_eState == k_ESteamNetworkingConnectionState_Connecting)
     {
@@ -265,11 +270,29 @@ void SteamNetworkingManager::handleConnectionStatusChanged(SteamNetConnectionSta
         g_isConnected = false;
         g_hConnection = k_HSteamNetConnection_Invalid;
         
+        std::stringstream ss;
         if (pInfo->m_info.m_eState == k_ESteamNetworkingConnectionState_ClosedByPeer) {
-             m_lastError = "连接断开 (对方关闭): " + std::string(pInfo->m_info.m_szEndDebug);
+             ss << "连接断开 (对方关闭): " << pInfo->m_info.m_szEndDebug;
         } else {
-             // Already set above for ProblemDetectedLocally, but ensure it's set here too if needed
-             if (m_lastError.empty()) m_lastError = "连接断开 (本地问题): " + std::string(pInfo->m_info.m_szEndDebug);
+             // If m_lastError is already set (from the first block), we might want to append or keep it.
+             // But usually this block runs after the state change is finalized.
+             // Let's just overwrite or append if empty to be safe.
+             if (m_lastError.empty()) {
+                 ss << "连接断开 (本地问题): " << pInfo->m_info.m_szEndDebug;
+             } else {
+                 // Already set, but let's add the details below if they weren't there? 
+                 // Actually, the first block sets it. Let's just use what we have or add more info if needed.
+                 // To be simple: if it's already set, we assume it's good.
+                 // But we want to ensure the code/desc is there.
+                 // Let's just reconstruct it to be sure we have the latest info.
+                 ss << "连接断开 (本地问题): " << pInfo->m_info.m_szEndDebug;
+             }
+        }
+        
+        if (ss.tellp() > 0) {
+            ss << " [代码: " << pInfo->m_info.m_eEndReason << "]"
+               << " [描述: " << pInfo->m_info.m_szConnectionDescription << "]";
+            m_lastError = ss.str();
         }
 
         // Remove from connections
