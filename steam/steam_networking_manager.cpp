@@ -93,6 +93,52 @@ bool SteamNetworkingManager::initialize()
         k_ESteamNetworkingConfig_Int32,
         &allowWithoutAuth);
 
+    // ============ Performance Optimization (Reference: ConnectTool-tun) ============
+    
+    // 1. Disable Nagle's algorithm for lower latency
+    int32 nagleTime = 0;
+    SteamNetworkingUtils()->SetConfigValue(
+        k_ESteamNetworkingConfig_NagleTime,
+        k_ESteamNetworkingConfig_Global,
+        0,
+        k_ESteamNetworkingConfig_Int32,
+        &nagleTime);
+
+    // 2. Increase Send Rate (5MB/s) to handle large Minecraft chunks
+    int32 sendRate = 5 * 1024 * 1024; 
+    SteamNetworkingUtils()->SetConfigValue(
+        k_ESteamNetworkingConfig_SendRateMin,
+        k_ESteamNetworkingConfig_Global,
+        0,
+        k_ESteamNetworkingConfig_Int32,
+        &sendRate);
+    SteamNetworkingUtils()->SetConfigValue(
+        k_ESteamNetworkingConfig_SendRateMax,
+        k_ESteamNetworkingConfig_Global,
+        0,
+        k_ESteamNetworkingConfig_Int32,
+        &sendRate);
+
+    // 3. Increase Send Buffer (10MB)
+    int32 sendBufferSize = 10 * 1024 * 1024;
+    SteamNetworkingUtils()->SetConfigValue(
+        k_ESteamNetworkingConfig_SendBufferSize,
+        k_ESteamNetworkingConfig_Global,
+        0,
+        k_ESteamNetworkingConfig_Int32,
+        &sendBufferSize);
+
+    // 4. Optimize MTU (Safe default for UDP tunneling)
+    int32 mtu = 1200;
+    SteamNetworkingUtils()->SetConfigValue(
+        k_ESteamNetworkingConfig_MTU_PacketSize,
+        k_ESteamNetworkingConfig_Global,
+        0,
+        k_ESteamNetworkingConfig_Int32,
+        &mtu);
+
+    std::cout << "[配置] 已应用高性能网络参数 (NoDelay, 5MB/s Rate, 10MB Buffer)" << std::endl;
+
     // Create callbacks after Steam API init
     SteamNetworkingUtils()->InitRelayNetworkAccess();
     SteamNetworkingUtils()->SetGlobalCallback_SteamNetConnectionStatusChanged(OnSteamNetConnectionStatusChanged);
