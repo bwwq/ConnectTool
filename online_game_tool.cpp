@@ -211,14 +211,11 @@ int main(int argc, char* argv[]) {
         if (arg == "+connect_lobby" && i + 1 < argc) {
             uint64 lobbyIDVal = std::stoull(argv[i + 1]);
             std::cout << "检测到启动参数：加入大厅 " << lobbyIDVal << "\n";
-            if (steamManager.joinHost(lobbyIDVal)) {
-                server = std::make_unique<TCPServer>(8888, &steamManager);
-                if (!server->start()) {
-                    std::cerr << "启动 TCP 服务器失败\n";
-                } else {
-                    std::cout << "已加入大厅 " << lobbyIDVal << "。TCP 服务器已在 8888 启动。\n";
-                    monitorMode = true;
-                }
+            if (roomManager.joinLobby(lobbyIDVal)) {
+                std::cout << "正在加入大厅 " << lobbyIDVal << "...\n";
+                monitorMode = true;
+            } else {
+                std::cerr << "加入大厅请求失败\n";
             }
         }
     }
@@ -288,16 +285,11 @@ int main(int argc, char* argv[]) {
                 try {
                     if (!arg.empty()) {
                         lobbyIDVal = std::stoull(arg);
-                        if (steamManager.joinHost(lobbyIDVal)) {
-                            server = std::make_unique<TCPServer>(8888, &steamManager);
-                            if (!server->start()) {
-                                std::cerr << "启动 TCP 服务器失败\n";
-                            } else {
-                                std::cout << "已加入大厅 " << lobbyIDVal << "。TCP 服务器已在 8888 启动。\n";
-                                monitorMode = true;
-                            }
+                        if (roomManager.joinLobby(lobbyIDVal)) {
+                            std::cout << "正在加入大厅 " << lobbyIDVal << "...\n";
+                            monitorMode = true;
                         } else {
-                            std::cout << "加入大厅失败。\n";
+                            std::cout << "加入大厅请求失败。\n";
                         }
                     } else {
                         std::cout << "用法：join <大厅ID>\n";
