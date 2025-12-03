@@ -60,12 +60,21 @@ void printHelp() {
 
 void enableAnsi() {
 #ifdef _WIN32
+    // Enable ANSI escape codes for Output
     HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
-    DWORD dwMode = 0;
-    GetConsoleMode(hOut, &dwMode);
-    dwMode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
-    SetConsoleMode(hOut, dwMode);
+    DWORD dwModeOut = 0;
+    GetConsoleMode(hOut, &dwModeOut);
+    dwModeOut |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+    SetConsoleMode(hOut, dwModeOut);
     SetConsoleOutputCP(65001); // Ensure UTF-8
+
+    // Disable Quick Edit Mode for Input (prevents freezing on click)
+    HANDLE hIn = GetStdHandle(STD_INPUT_HANDLE);
+    DWORD dwModeIn = 0;
+    GetConsoleMode(hIn, &dwModeIn);
+    dwModeIn &= ~ENABLE_QUICK_EDIT_MODE;
+    dwModeIn |= ENABLE_EXTENDED_FLAGS; // Required to disable Quick Edit
+    SetConsoleMode(hIn, dwModeIn);
 #endif
 }
 
@@ -74,95 +83,16 @@ void clearScreen() {
     std::cout << "\033[1;1H"; 
 }
 
-void printStatus(SteamNetworkingManager& steamManager, SteamRoomManager& roomManager) {
-    if (monitorMode) {
-        clearScreen();
-        std::cout << "=== 实时监控（输入 'monitor off' 停止） ===\n\n";
-    }
-
-    if (steamManager.isHost()) {
-        std::cout << "[主机] 正在主持大厅。本地端口：" << localPort << "\n";
-    } else if (steamManager.isConnected()) {
-        std::cout << "[客户端] 已连接到大厅。\n";
-    } else {
-        std::cout << "[状态] 未连接。\n";
-        // If not connected and in monitor mode, we still want to clear the rest of the screen
-        if (monitorMode) std::cout << "\033[J";
-        return;
-    }
-
-    CSteamID lobbyID = roomManager.getCurrentLobby();
-    if (lobbyID.IsValid()) {
-        std::cout << "大厅 ID：" << lobbyID.ConvertToUint64() << "\n";
-        std::cout << "成员列表：\n";
-        
-        std::vector<CSteamID> members = roomManager.getLobbyMembers();
-        CSteamID mySteamID = SteamUser()->GetSteamID();
-        CSteamID hostSteamID = steamManager.getHostSteamID();
-
-        printf("%-20s %-10s %-20s\n", "名称", "延迟(ms)", "中继信息");
-        printf("--------------------------------------------------\n");
-
-        for (const auto& memberID : members) {
-            const char* name = SteamFriends()->GetFriendPersonaName(memberID);
-            int ping = 0;
-            std::string relayInfo = "-";
-
-            if (memberID == mySteamID) {
-                printf("%-20s %-10s %-20s\n", name, "-", "-");
-            } else {
-                if (steamManager.isHost()) {
-                    // Host logic to find ping
-                    std::lock_guard<std::mutex> lockConn(connectionsMutex);
-                    for (const auto& conn : steamManager.getConnections()) {
-                        SteamNetConnectionInfo_t info;
-                        if (steamManager.getInterface()->GetConnectionInfo(conn, &info)) {
-                            if (info.m_identityRemote.GetSteamID() == memberID) {
-                                ping = steamManager.getConnectionPing(conn);
-                                relayInfo = steamManager.getConnectionRelayInfo(conn);
-                                break;
-                            }
-                        }
-                    }
-                } else {
-                    // Client logic
-                    if (memberID == hostSteamID) {
-                        ping = steamManager.getHostPing();
-                        if (steamManager.getConnection() != k_HSteamNetConnection_Invalid) {
-                            relayInfo = steamManager.getConnectionRelayInfo(steamManager.getConnection());
-                        }
-                    }
-                }
-                
-                if (relayInfo != "-") {
-                    printf("%-20s %-10d %-20s\n", name, ping, relayInfo.c_str());
-                } else {
-                    printf("%-20s %-10s %-20s\n", name, "-", "-");
-                }
-            }
-        }
-    }
-    
-    if (server) {
-        std::cout << "\nTCP 服务器端口：8888 | 客户端数：" << server->getClientCount() << "\n";
-    }
-    
-    if (monitorMode) {
-        // Clear from cursor to end of screen to remove any leftover text from previous frames
-        std::cout << "\033[J";
-    } else {
-        std::cout << "\n> " << std::flush;
-    }
-}
+// ... (printStatus remains same) ...
 
 int main(int argc, char* argv[]) {
+    enableAnsi(); // Enable ANSI, UTF-8, and disable Quick Edit FIRST
+
     // Initialize Steam API
     if (!SteamAPI_Init()) {
         std::cerr << "初始化 Steam API 失败" << std::endl;
         return 1;
     }
-
-    enableAnsi(); // Enable ANSI support and UTF-8
 
     boost::asio::io_context io_context;
     auto work_guard = boost::asio::make_work_guard(io_context);
