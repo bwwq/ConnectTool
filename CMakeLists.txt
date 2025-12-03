@@ -36,12 +36,4 @@ target_link_libraries(ConnectTool
     ${CMAKE_SOURCE_DIR}/steam_sdk/lib/steam_api64.lib
 )
 
-# Copy steam_api64.dll to output directory for runtime
-add_custom_command(TARGET ConnectTool POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy
-    ${CMAKE_SOURCE_DIR}/steam_sdk/redistributable_bin/win64/steam_api64.dll
-    $<TARGET_FILE_DIR:ConnectTool>/steam_api64.dll
-    COMMAND ${CMAKE_COMMAND} -E copy
-    ${CMAKE_SOURCE_DIR}/build/Release/steam_api64.dll
-    $<TARGET_FILE_DIR:ConnectTool>/steam_api64.dll
-)
+
