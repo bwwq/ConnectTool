@@ -38,14 +38,10 @@ bool SteamNetworkingManager::initialize()
         return false;
     }
 
-    // 【新增】开启详细日志
-    SteamNetworkingUtils()->SetDebugOutputFunction(k_ESteamNetworkingSocketsDebugOutputType_Msg,
-                                                   [](ESteamNetworkingSocketsDebugOutputType nType, const char *pszMsg)
-                                                   {
-                                                       std::cout << "[SteamNet] " << pszMsg << std::endl;
-                                                   });
+    // Disable debug output to prevent interference with CLI UI
+    SteamNetworkingUtils()->SetDebugOutputFunction(k_ESteamNetworkingSocketsDebugOutputType_None, nullptr);
 
-    int32 logLevel = k_ESteamNetworkingSocketsDebugOutputType_Verbose;
+    int32 logLevel = k_ESteamNetworkingSocketsDebugOutputType_None;
     SteamNetworkingUtils()->SetConfigValue(
         k_ESteamNetworkingConfig_LogLevel_P2PRendezvous,
         k_ESteamNetworkingConfig_Global,
