@@ -122,7 +122,6 @@ bool SteamNetworkingManager::joinHost(uint64 hostID)
 
     if (g_hConnection != k_HSteamNetConnection_Invalid)
     {
-        std::cout << "Attempting to connect to host " << hostSteamID.ConvertToUint64() << " with virtual port " << 0 << std::endl;
         return true;
     }
     else

@@ -17,12 +17,9 @@ bool TCPServer::start() {
 
         running_ = true;
         serverThread_ = std::thread([this]() { 
-            std::cout << "Server thread started" << std::endl;
             io_context_.run(); 
-            std::cout << "Server thread stopped" << std::endl;
         });
         start_accept();
-        std::cout << "TCP server started on port " << port_ << std::endl;
         return true;
     } catch (const std::exception& e) {
         std::cerr << "Failed to start TCP server: " << e.what() << std::endl;
@@ -61,7 +58,6 @@ void TCPServer::start_accept() {
     auto socket = std::make_shared<tcp::socket>(io_context_);
     acceptor_.async_accept(*socket, [this, socket](const boost::system::error_code& error) {
         if (!error) {
-            std::cout << "New client connected" << std::endl;
             auto multiplexManager = manager_->getMessageHandler()->getMultiplexManager(manager_->getConnection());
             std::string id = multiplexManager->addClient(socket);
             {
@@ -83,13 +79,10 @@ void TCPServer::start_read(std::shared_ptr<tcp::socket> socket, std::string id) 
             if (manager_->isConnected()) {
                 auto multiplexManager = manager_->getMessageHandler()->getMultiplexManager(manager_->getConnection());
                 multiplexManager->sendTunnelPacket(id, buffer->data(), bytes_transferred, 0);
-            } else {
-                std::cout << "Not connected to Steam, skipping forward" << std::endl;
             }
             sendToAll(buffer->data(), bytes_transferred, socket);
             start_read(socket, id);
         } else {
-            std::cout << "TCP client " << id << " disconnected or error: " << error.message() << std::endl;
             // Send disconnect packet
             if (manager_->isConnected()) {
                 auto multiplexManager = manager_->getMessageHandler()->getMultiplexManager(manager_->getConnection());
