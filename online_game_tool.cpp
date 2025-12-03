@@ -45,16 +45,16 @@ void inputThreadFunc() {
 }
 
 void printHelp() {
-    std::cout << "\nAvailable Commands:\n";
-    std::cout << "  host <port>       - Host a lobby (Port required)\n";
-    std::cout << "  join <LobbyID>    - Join a lobby\n";
-    std::cout << "  disconnect        - Leave lobby and stop server\n";
-    std::cout << "  friends           - List Steam friends\n";
-    std::cout << "  invite <name>     - Invite friend (fuzzy match)\n";
-    std::cout << "  status            - Show status once\n";
-    std::cout << "  monitor [on/off]  - Toggle real-time status monitor\n";
-    std::cout << "  help              - Show this help\n";
-    std::cout << "  quit / exit       - Exit application\n";
+    std::cout << "\n可用命令：\n";
+    std::cout << "  host <端口>       - 主持大厅（必须指定端口）\n";
+    std::cout << "  join <大厅ID>     - 加入大厅\n";
+    std::cout << "  disconnect        - 离开大厅并停止服务器\n";
+    std::cout << "  friends           - 列出 Steam 好友\n";
+    std::cout << "  invite <名称>     - 邀请好友（模糊匹配）\n";
+    std::cout << "  status            - 显示一次当前状态\n";
+    std::cout << "  monitor [on/off]  - 开启/关闭实时状态监控\n";
+    std::cout << "  help              - 显示此帮助信息\n";
+    std::cout << "  quit / exit       - 退出应用程序\n";
     std::cout << "> " << std::flush;
 }
 
@@ -69,28 +69,28 @@ void clearScreen() {
 void printStatus(SteamNetworkingManager& steamManager, SteamRoomManager& roomManager) {
     if (monitorMode) {
         clearScreen();
-        std::cout << "=== Real-time Monitor (Type 'monitor off' to stop) ===\n\n";
+        std::cout << "=== 实时监控（输入 'monitor off' 停止） ===\n\n";
     }
 
     if (steamManager.isHost()) {
-        std::cout << "[HOST] Hosting Lobby. Local Port: " << localPort << "\n";
+        std::cout << "[主机] 正在主持大厅。本地端口：" << localPort << "\n";
     } else if (steamManager.isConnected()) {
-        std::cout << "[CLIENT] Connected to Lobby.\n";
+        std::cout << "[客户端] 已连接到大厅。\n";
     } else {
-        std::cout << "[STATUS] Not connected.\n";
+        std::cout << "[状态] 未连接。\n";
         return;
     }
 
     CSteamID lobbyID = roomManager.getCurrentLobby();
     if (lobbyID.IsValid()) {
-        std::cout << "Lobby ID: " << lobbyID.ConvertToUint64() << "\n";
-        std::cout << "Members:\n";
+        std::cout << "大厅 ID：" << lobbyID.ConvertToUint64() << "\n";
+        std::cout << "成员列表：\n";
         
         std::vector<CSteamID> members = roomManager.getLobbyMembers();
         CSteamID mySteamID = SteamUser()->GetSteamID();
         CSteamID hostSteamID = steamManager.getHostSteamID();
 
-        printf("%-20s %-10s %-20s\n", "Name", "Ping(ms)", "Relay Info");
+        printf("%-20s %-10s %-20s\n", "名称", "延迟(ms)", "中继信息");
         printf("--------------------------------------------------\n");
 
         for (const auto& memberID : members) {
@@ -134,7 +134,7 @@ void printStatus(SteamNetworkingManager& steamManager, SteamRoomManager& roomMan
     }
     
     if (server) {
-        std::cout << "\nTCP Server Port: 8888 | Clients: " << server->getClientCount() << "\n";
+        std::cout << "\nTCP 服务器端口：8888 | 客户端数：" << server->getClientCount() << "\n";
     }
     
     if (!monitorMode) {
@@ -145,7 +145,7 @@ void printStatus(SteamNetworkingManager& steamManager, SteamRoomManager& roomMan
 int main() {
     // Initialize Steam API
     if (!SteamAPI_Init()) {
-        std::cerr << "Failed to initialize Steam API" << std::endl;
+        std::cerr << "初始化 Steam API 失败" << std::endl;
         return 1;
     }
 
@@ -156,7 +156,7 @@ int main() {
     // Initialize Managers
     SteamNetworkingManager steamManager;
     if (!steamManager.initialize()) {
-        std::cerr << "Failed to initialize Steam Networking Manager" << std::endl;
+        std::cerr << "初始化 Steam Networking Manager 失败" << std::endl;
         SteamAPI_Shutdown();
         return 1;
     }
@@ -167,7 +167,12 @@ int main() {
     steamManager.setMessageHandlerDependencies(io_context, server, localPort);
     steamManager.startMessageHandler();
 
-    std::cout << "ConnectTool CLI Started.\n";
+    // Set console code page to UTF-8 for Windows to display Chinese correctly
+#ifdef _WIN32
+    SetConsoleOutputCP(65001);
+#endif
+
+    std::cout << "ConnectTool 命令行工具已启动。\n";
     printHelp();
 
     // Start input thread
@@ -204,10 +209,10 @@ int main() {
                 if (ss >> port) {
                     localPort = port;
                     roomManager.startHosting();
-                    std::cout << "Hosting lobby on local port " << localPort << "...\n";
+                    std::cout << "正在本地端口 " << localPort << " 主持大厅...\n";
                     monitorMode = true; // Auto-enable monitor
                 } else {
-                    std::cout << "Usage: host <port>\n";
+                    std::cout << "用法：host <端口>\n";
                 }
             } else if (cmd == "join") {
                 uint64 lobbyIDVal;
@@ -216,16 +221,16 @@ int main() {
                         // Start TCP Server
                         server = std::make_unique<TCPServer>(8888, &steamManager);
                         if (!server->start()) {
-                            std::cerr << "Failed to start TCP server\n";
+                            std::cerr << "启动 TCP 服务器失败\n";
                         } else {
-                            std::cout << "Joined lobby " << lobbyIDVal << ". TCP Server started on 8888.\n";
+                            std::cout << "已加入大厅 " << lobbyIDVal << "。TCP 服务器已在 8888 启动。\n";
                             monitorMode = true; // Auto-enable monitor
                         }
                     } else {
-                        std::cout << "Failed to join lobby.\n";
+                        std::cout << "加入大厅失败。\n";
                     }
                 } else {
-                    std::cout << "Usage: join <LobbyID>\n";
+                    std::cout << "用法：join <大厅ID>\n";
                 }
             } else if (cmd == "disconnect") {
                 roomManager.leaveLobby();
@@ -235,9 +240,9 @@ int main() {
                     server.reset();
                 }
                 monitorMode = false;
-                std::cout << "Disconnected.\n";
+                std::cout << "已断开连接。\n";
             } else if (cmd == "friends") {
-                std::cout << "Friends List:\n";
+                std::cout << "好友列表：\n";
                 for (const auto& friendPair : SteamUtils::getFriendsList()) {
                     std::cout << " - " << friendPair.second << " (" << friendPair.first.ConvertToUint64() << ")\n";
                 }
@@ -245,7 +250,7 @@ int main() {
                 std::string filter;
                 ss >> filter;
                 if (filter.empty()) {
-                    std::cout << "Usage: invite <name_part>\n";
+                    std::cout << "用法：invite <名称片段>\n";
                 } else {
                     std::transform(filter.begin(), filter.end(), filter.begin(), ::tolower);
                     bool found = false;
@@ -257,12 +262,12 @@ int main() {
                         if (nameLower.find(filter) != std::string::npos) {
                             if (SteamMatchmaking()) {
                                 SteamMatchmaking()->InviteUserToLobby(roomManager.getCurrentLobby(), friendPair.first);
-                                std::cout << "Invited " << name << "\n";
+                                std::cout << "已邀请 " << name << "\n";
                                 found = true;
                             }
                         }
                     }
-                    if (!found) std::cout << "No friend found matching '" << filter << "'\n";
+                    if (!found) std::cout << "未找到匹配 '" << filter << "' 的好友\n";
                 }
             } else if (cmd == "status") {
                 printStatus(steamManager, roomManager);
@@ -271,9 +276,9 @@ int main() {
                 ss >> arg;
                 if (arg == "on") monitorMode = true;
                 else if (arg == "off") monitorMode = false;
-                else std::cout << "Usage: monitor [on/off]\n";
+                else std::cout << "用法：monitor [on/off]\n";
             } else {
-                std::cout << "Unknown command. Type 'help' for list.\n";
+                std::cout << "未知命令。输入 'help' 查看列表。\n";
             }
             
             if (!monitorMode) std::cout << "> " << std::flush;
