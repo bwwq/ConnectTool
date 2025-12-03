@@ -58,12 +58,20 @@ void printHelp() {
     std::cout << "> " << std::flush;
 }
 
-void clearScreen() {
+void enableAnsi() {
 #ifdef _WIN32
-    system("cls");
-#else
-    system("clear");
+    HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
+    DWORD dwMode = 0;
+    GetConsoleMode(hOut, &dwMode);
+    dwMode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+    SetConsoleMode(hOut, dwMode);
+    SetConsoleOutputCP(65001); // Ensure UTF-8
 #endif
+}
+
+void clearScreen() {
+    // Move cursor to top-left (1,1)
+    std::cout << "\033[1;1H"; 
 }
 
 void printStatus(SteamNetworkingManager& steamManager, SteamRoomManager& roomManager) {
@@ -78,6 +86,8 @@ void printStatus(SteamNetworkingManager& steamManager, SteamRoomManager& roomMan
         std::cout << "[客户端] 已连接到大厅。\n";
     } else {
         std::cout << "[状态] 未连接。\n";
+        // If not connected and in monitor mode, we still want to clear the rest of the screen
+        if (monitorMode) std::cout << "\033[J";
         return;
     }
 
@@ -137,7 +147,10 @@ void printStatus(SteamNetworkingManager& steamManager, SteamRoomManager& roomMan
         std::cout << "\nTCP 服务器端口：8888 | 客户端数：" << server->getClientCount() << "\n";
     }
     
-    if (!monitorMode) {
+    if (monitorMode) {
+        // Clear from cursor to end of screen to remove any leftover text from previous frames
+        std::cout << "\033[J";
+    } else {
         std::cout << "\n> " << std::flush;
     }
 }
@@ -148,6 +161,8 @@ int main() {
         std::cerr << "初始化 Steam API 失败" << std::endl;
         return 1;
     }
+
+    enableAnsi(); // Enable ANSI support and UTF-8
 
     boost::asio::io_context io_context;
     auto work_guard = boost::asio::make_work_guard(io_context);
