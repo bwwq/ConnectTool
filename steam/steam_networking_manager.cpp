@@ -105,6 +105,19 @@ bool SteamNetworkingManager::initialize()
     return true;
 }
 
+void SteamNetworkingManager::setForceRelay(bool force)
+{
+    int32 iceEnable = force ? k_nSteamNetworkingConfig_P2P_Transport_ICE_Enable_Disable : (k_nSteamNetworkingConfig_P2P_Transport_ICE_Enable_Public | k_nSteamNetworkingConfig_P2P_Transport_ICE_Enable_Private);
+    SteamNetworkingUtils()->SetConfigValue(
+        k_ESteamNetworkingConfig_P2P_Transport_ICE_Enable,
+        k_ESteamNetworkingConfig_Global,
+        0,
+        k_ESteamNetworkingConfig_Int32,
+        &iceEnable);
+        
+    std::cout << (force ? "[配置] 已开启强制中继模式 (Force Relay)。" : "[配置] 已关闭强制中继模式 (Auto P2P)。") << std::endl;
+}
+
 void SteamNetworkingManager::shutdown()
 {
     if (g_hConnection != k_HSteamNetConnection_Invalid)

@@ -31,6 +31,7 @@ public:
 
     bool initialize();
     void shutdown();
+    void setForceRelay(bool force);
 
     // Joining
     bool joinHost(uint64 hostID);

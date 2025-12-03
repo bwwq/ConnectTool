@@ -53,6 +53,7 @@ void printHelp() {
     std::cout << "  invite <名称>     - 邀请好友（模糊匹配）\n";
     std::cout << "  status            - 显示一次当前状态\n";
     std::cout << "  monitor [on/off]  - 开启/关闭实时状态监控\n";
+    std::cout << "  relay [on/off]    - 开启/关闭强制中继模式 (解决防火墙问题)\n";
     std::cout << "  help              - 显示此帮助信息\n";
     std::cout << "  quit / exit       - 退出应用程序\n";
     std::cout << "> " << std::flush;
@@ -340,6 +341,10 @@ int main(int argc, char* argv[]) {
                 if (arg == "on") monitorMode = true;
                 else if (arg == "off") monitorMode = false;
                 else std::cout << "用法：monitor [on/off]\n";
+            } else if (checkCommand("relay")) {
+                if (arg == "on") steamManager.setForceRelay(true);
+                else if (arg == "off") steamManager.setForceRelay(false);
+                else std::cout << "用法：relay [on/off]\n";
             } else {
                 std::cout << "未知命令。输入 'help' 查看列表。\n";
             }
