@@ -59,16 +59,21 @@ bool SteamNetworkingManager::initialize()
         k_ESteamNetworkingConfig_Int32,
         &nIceEnable);
 
-    // 2. (可选) 极度排斥中继
-    // 如果你铁了心不想走中继，可以给中继路径增加巨大的虚拟延迟惩罚
-    // 这样只有在直连完全打不通（比如防火墙太严格）时，Steam 才会无奈选择中继
-    int32 nSdrPenalty = 10000; // 10000ms 惩罚
+    // 2. 增加连接超时时间，提高稳定性
+    int32 timeoutMs = 30000; // 30秒
     SteamNetworkingUtils()->SetConfigValue(
-        k_ESteamNetworkingConfig_P2P_Transport_SDR_Penalty,
+        k_ESteamNetworkingConfig_TimeoutInitial,
         k_ESteamNetworkingConfig_Global,
         0,
         k_ESteamNetworkingConfig_Int32,
-        &nSdrPenalty);
+        &timeoutMs);
+    
+    SteamNetworkingUtils()->SetConfigValue(
+        k_ESteamNetworkingConfig_TimeoutConnected,
+        k_ESteamNetworkingConfig_Global,
+        0,
+        k_ESteamNetworkingConfig_Int32,
+        &timeoutMs);
 
     // Allow connections from IPs without authentication
     int32 allowWithoutAuth = 2;
