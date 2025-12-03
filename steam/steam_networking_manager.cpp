@@ -356,6 +356,8 @@ void SteamNetworkingManager::handleConnectionStatusChanged(SteamNetConnectionSta
             
             if (pInfo->m_info.m_eEndReason == 5008 || pInfo->m_info.m_eEndReason == 5002 || pInfo->m_info.m_eEndReason == 5003) {
                  ss << "\n[提示] 请检查主机是否已启动 'host' 模式，且双方防火墙允许此程序通行。";
+            } else if (pInfo->m_info.m_eEndReason == 4003) {
+                 ss << "\n[提示] 证书验证失败。请务必检查：\n1. 双方电脑/VPS的【系统时间】是否准确（精确到分钟）。\n2. 尝试重启 Steam 客户端以更新证书。";
             }
             
             m_lastError = ss.str();
