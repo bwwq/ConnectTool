@@ -83,7 +83,86 @@ void clearScreen() {
     std::cout << "\033[1;1H"; 
 }
 
-// ... (printStatus remains same) ...
+void printStatus(SteamNetworkingManager& steamManager, SteamRoomManager& roomManager) {
+    if (monitorMode) {
+        clearScreen();
+        std::cout << "=== 实时监控（输入 'monitor off' 停止） ===\n\n";
+    }
+
+    if (steamManager.isHost()) {
+        std::cout << "[主机] 正在主持大厅。本地端口：" << localPort << "\n";
+    } else if (steamManager.isConnected()) {
+        std::cout << "[客户端] 已连接到大厅。\n";
+    } else {
+        std::cout << "[状态] 未连接。\n";
+        // If not connected and in monitor mode, we still want to clear the rest of the screen
+        if (monitorMode) std::cout << "\033[J";
+        return;
+    }
+
+    CSteamID lobbyID = roomManager.getCurrentLobby();
+    if (lobbyID.IsValid()) {
+        std::cout << "大厅 ID：" << lobbyID.ConvertToUint64() << "\n";
+        std::cout << "成员列表：\n";
+        
+        std::vector<CSteamID> members = roomManager.getLobbyMembers();
+        CSteamID mySteamID = SteamUser()->GetSteamID();
+        CSteamID hostSteamID = steamManager.getHostSteamID();
+
+        printf("%-20s %-10s %-20s\n", "名称", "延迟(ms)", "中继信息");
+        printf("--------------------------------------------------\n");
+
+        for (const auto& memberID : members) {
+            const char* name = SteamFriends()->GetFriendPersonaName(memberID);
+            int ping = 0;
+            std::string relayInfo = "-";
+
+            if (memberID == mySteamID) {
+                printf("%-20s %-10s %-20s\n", name, "-", "-");
+            } else {
+                if (steamManager.isHost()) {
+                    // Host logic to find ping
+                    std::lock_guard<std::mutex> lockConn(connectionsMutex);
+                    for (const auto& conn : steamManager.getConnections()) {
+                        SteamNetConnectionInfo_t info;
+                        if (steamManager.getInterface()->GetConnectionInfo(conn, &info)) {
+                            if (info.m_identityRemote.GetSteamID() == memberID) {
+                                ping = steamManager.getConnectionPing(conn);
+                                relayInfo = steamManager.getConnectionRelayInfo(conn);
+                                break;
+                            }
+                        }
+                    }
+                } else {
+                    // Client logic
+                    if (memberID == hostSteamID) {
+                        ping = steamManager.getHostPing();
+                        if (steamManager.getConnection() != k_HSteamNetConnection_Invalid) {
+                            relayInfo = steamManager.getConnectionRelayInfo(steamManager.getConnection());
+                        }
+                    }
+                }
+                
+                if (relayInfo != "-") {
+                    printf("%-20s %-10d %-20s\n", name, ping, relayInfo.c_str());
+                } else {
+                    printf("%-20s %-10s %-20s\n", name, "-", "-");
+                }
+            }
+        }
+    }
+    
+    if (server) {
+        std::cout << "\nTCP 服务器端口：8888 | 客户端数：" << server->getClientCount() << "\n";
+    }
+    
+    if (monitorMode) {
+        // Clear from cursor to end of screen to remove any leftover text from previous frames
+        std::cout << "\033[J";
+    } else {
+        std::cout << "\n> " << std::flush;
+    }
+}
 
 int main(int argc, char* argv[]) {
     enableAnsi(); // Enable ANSI, UTF-8, and disable Quick Edit FIRST
@@ -129,11 +208,6 @@ int main(int argc, char* argv[]) {
             }
         }
     }
-
-    // Set console code page to UTF-8 for Windows to display Chinese correctly
-#ifdef _WIN32
-    SetConsoleOutputCP(65001);
-#endif
 
     std::cout << "ConnectTool 命令行工具已启动。\n";
     printHelp();
