@@ -277,7 +277,7 @@ int main(int argc, char* argv[]) {
                         roomManager.startHosting();
                         std::cout << "正在本地端口 " << localPort << " 主持大厅...\n";
                         std::cout << "[注意] 如果您在 VPS 或 Windows Server 上运行，请务必在防火墙中放行本程序 (UDP/TCP)。\n";
-                        monitorMode = true;
+                        monitorMode = false; // Default off to prevent spam
                     } else {
                         std::cout << "用法：host <端口>\n";
                     }
@@ -291,7 +291,7 @@ int main(int argc, char* argv[]) {
                         lobbyIDVal = std::stoull(arg);
                         if (roomManager.joinLobby(lobbyIDVal)) {
                             std::cout << "正在加入大厅 " << lobbyIDVal << "...\n";
-                            monitorMode = true;
+                            monitorMode = false; // Default off
                         } else {
                             std::cout << "加入大厅请求失败。\n";
                         }
@@ -360,14 +360,26 @@ int main(int argc, char* argv[]) {
 
         // Real-time monitor update
         if (monitorMode) {
-            auto now = std::chrono::steady_clock::now();
-            if (std::chrono::duration_cast<std::chrono::seconds>(now - lastStatusTime).count() >= 1) {
-                printStatus(steamManager, roomManager);
-                lastStatusTime = now;
+            // Check for critical errors first
+            std::string error = steamManager.getLastError();
+            if (!error.empty()) {
+                monitorMode = false; // Stop monitoring
+                std::cout << "\n\n================ [CRITICAL ERROR] ================\n";
+                std::cout << error << "\n";
+                std::cout << "==================================================\n";
+                std::cout << "监控已停止。按回车键继续..." << std::endl;
+                // Don't clear error here so it persists until next connection attempt
+            } else {
+                auto now = std::chrono::steady_clock::now();
+                if (std::chrono::duration_cast<std::chrono::seconds>(now - lastStatusTime).count() >= 1) {
+                    printStatus(steamManager, roomManager);
+                    lastStatusTime = now;
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(500)); // Refresh rate
             }
+        } else {
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
-
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 
     // Cleanup

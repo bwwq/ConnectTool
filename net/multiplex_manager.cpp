@@ -26,7 +26,7 @@ std::string MultiplexManager::addClient(std::shared_ptr<tcp::socket> socket)
         std::lock_guard<std::mutex> lock(mapMutex_);
         id = nanoid::generate(6);
         clientMap_[id] = socket;
-        readBuffers_[id].resize(16384);
+        readBuffers_[id].resize(131072); // 128KB
     }
     startAsyncRead(id);
     std::cout << "Added client with id " << id << std::endl;
@@ -106,7 +106,7 @@ void MultiplexManager::handleTunnelPacket(const char *data, size_t len)
                 {
                     std::lock_guard<std::mutex> lock(mapMutex_);
                     clientMap_[id] = newSocket;
-                    readBuffers_[id].resize(16384);
+                    readBuffers_[id].resize(131072); // 128KB
                     socket = newSocket;
                 }
                 std::cout << "Successfully created TCP client for id " << id << std::endl;
@@ -143,7 +143,8 @@ void MultiplexManager::handleTunnelPacket(const char *data, size_t len)
         auto now = std::chrono::steady_clock::now();
         auto sentTime = *reinterpret_cast<const std::chrono::steady_clock::time_point*>(data + idLen + sizeof(uint32_t));
         auto rtt = std::chrono::duration_cast<std::chrono::milliseconds>(now - sentTime).count();
-        std::cout << "[Ping] Pong received! RTT: " << rtt << " ms" << std::endl;
+        // std::cout << "[Ping] Pong received! RTT: " << rtt << " ms" << std::endl; // Silenced for performance
+        std::cout << "RTT: " << rtt << " ms\r" << std::flush; // Print RTT in-place
     }
     else
     {
@@ -156,7 +157,7 @@ void MultiplexManager::sendPing()
     std::string id = "PING"; // Dummy ID
     auto now = std::chrono::steady_clock::now();
     sendTunnelPacket(id, reinterpret_cast<const char*>(&now), sizeof(now), 2);
-    std::cout << "[Ping] Sending Ping..." << std::endl;
+    // std::cout << "[Ping] Sending Ping..." << std::endl; // Silenced
 }
 
 void MultiplexManager::startAsyncRead(const std::string &id)
