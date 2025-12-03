@@ -229,10 +229,11 @@ std::string SteamNetworkingManager::getConnectionRelayInfo(HSteamNetConnection c
 void SteamNetworkingManager::handleConnectionStatusChanged(SteamNetConnectionStatusChangedCallback_t *pInfo)
 {
     std::lock_guard<std::mutex> lock(connectionsMutex);
-    std::cout << "Connection status changed: " << pInfo->m_info.m_eState << " for connection " << pInfo->m_hConn << std::endl;
+    // Log removed to prevent CLI interference
+    
     if (pInfo->m_info.m_eState == k_ESteamNetworkingConnectionState_ProblemDetectedLocally)
     {
-        std::cout << "Connection failed: " << pInfo->m_info.m_szEndDebug << std::endl;
+        // Connection failed
     }
     if (pInfo->m_eOldState == k_ESteamNetworkingConnectionState_None && pInfo->m_info.m_eState == k_ESteamNetworkingConnectionState_Connecting)
     {
@@ -240,26 +241,15 @@ void SteamNetworkingManager::handleConnectionStatusChanged(SteamNetConnectionSta
         connections.push_back(pInfo->m_hConn);
         g_hConnection = pInfo->m_hConn;
         g_isConnected = true;
-        std::cout << "Accepted incoming connection from " << pInfo->m_info.m_identityRemote.GetSteamID().ConvertToUint64() << std::endl;
-        // Log connection info
-        SteamNetConnectionInfo_t info;
-        SteamNetConnectionRealTimeStatus_t status;
-        if (m_pInterface->GetConnectionInfo(pInfo->m_hConn, &info) && m_pInterface->GetConnectionRealTimeStatus(pInfo->m_hConn, &status, 0, nullptr))
-        {
-            std::cout << "Incoming connection details: ping=" << status.m_nPing << "ms, relay=" << (info.m_idPOPRelay != 0 ? "yes" : "no") << std::endl;
-        }
     }
     else if (pInfo->m_eOldState == k_ESteamNetworkingConnectionState_Connecting && pInfo->m_info.m_eState == k_ESteamNetworkingConnectionState_Connected)
     {
         g_isConnected = true;
-        std::cout << "Connected to host" << std::endl;
-        // Log connection info
         SteamNetConnectionInfo_t info;
         SteamNetConnectionRealTimeStatus_t status;
         if (m_pInterface->GetConnectionInfo(pInfo->m_hConn, &info) && m_pInterface->GetConnectionRealTimeStatus(pInfo->m_hConn, &status, 0, nullptr))
         {
             hostPing_ = status.m_nPing;
-            std::cout << "Outgoing connection details: ping=" << status.m_nPing << "ms, relay=" << (info.m_idPOPRelay != 0 ? "yes" : "no") << std::endl;
         }
     }
     else if (pInfo->m_info.m_eState == k_ESteamNetworkingConnectionState_ClosedByPeer || pInfo->m_info.m_eState == k_ESteamNetworkingConnectionState_ProblemDetectedLocally)
@@ -273,6 +263,5 @@ void SteamNetworkingManager::handleConnectionStatusChanged(SteamNetConnectionSta
             connections.erase(it);
         }
         hostPing_ = 0;
-        std::cout << "Connection closed" << std::endl;
     }
 }
