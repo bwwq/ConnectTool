@@ -70,6 +70,7 @@ jobs:
         cd build
         cmd /c "cmake .. -DCMAKE_TOOLCHAIN_FILE=../vcpkg/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows"
         cmd /c "cmake --build . --config Release"
+        Copy-Item -Path "..\steam_appid.txt" -Destination "Release\steam_appid.txt" -Force
 
     - name: 6. 上传成品
       uses: actions/upload-artifact@v4
