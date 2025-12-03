@@ -289,7 +289,7 @@ int main(int argc, char* argv[]) {
                         std::cout << "用法：join <大厅ID>\n";
                     }
                 } catch (...) {
-                    std::cout << "无效大厅ID\n";
+                    std::cout << "无效大厅ID: " << arg << " (请检查ID是否正确)\n";
                 }
             } else if (command == "disconnect") {
                 roomManager.leaveLobby();
