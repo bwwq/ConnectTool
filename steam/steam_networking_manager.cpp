@@ -50,8 +50,23 @@ bool SteamNetworkingManager::initialize()
         k_ESteamNetworkingConfig_Int32,
         &logLevel);
 
-    // 1. 允许 P2P (ICE) 直连 - 使用默认设置，移除手动配置以避免兼容性问题
-    // SteamNetworkingUtils()->SetConfigValue(k_ESteamNetworkingConfig_P2P_Transport_ICE_Enable, ...);
+    // 1. 允许 P2P (ICE) 直连 - 重新启用以支持 VPS/复杂网络环境
+    int32 nIceEnable = k_nSteamNetworkingConfig_P2P_Transport_ICE_Enable_Public | k_nSteamNetworkingConfig_P2P_Transport_ICE_Enable_Private;
+    SteamNetworkingUtils()->SetConfigValue(
+        k_ESteamNetworkingConfig_P2P_Transport_ICE_Enable,
+        k_ESteamNetworkingConfig_Global,
+        0,
+        k_ESteamNetworkingConfig_Int32,
+        &nIceEnable);
+
+    // 2. 优化对称 NAT 连接 (对 VPS/云服务器很重要)
+    int32 symmetricConnect = 1;
+    SteamNetworkingUtils()->SetConfigValue(
+        k_ESteamNetworkingConfig_SymmetricConnect,
+        k_ESteamNetworkingConfig_Global,
+        0,
+        k_ESteamNetworkingConfig_Int32,
+        &symmetricConnect);
 
     // 2. 增加连接超时时间，提高稳定性
     int32 timeoutMs = 30000; // 30秒

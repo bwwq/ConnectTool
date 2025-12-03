@@ -273,6 +273,7 @@ int main(int argc, char* argv[]) {
                         localPort = port;
                         roomManager.startHosting();
                         std::cout << "正在本地端口 " << localPort << " 主持大厅...\n";
+                        std::cout << "[注意] 如果您在 VPS 或 Windows Server 上运行，请务必在防火墙中放行本程序 (UDP/TCP)。\n";
                         monitorMode = true;
                     } else {
                         std::cout << "用法：host <端口>\n";
