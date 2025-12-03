@@ -50,15 +50,8 @@ bool SteamNetworkingManager::initialize()
         k_ESteamNetworkingConfig_Int32,
         &logLevel);
 
-    // 1. 允许 P2P (ICE) 直连
-    // 默认情况下 Steam 可能会保守地只允许 LAN，这里设置为 "All" 允许公网 P2P
-    int32 nIceEnable = k_nSteamNetworkingConfig_P2P_Transport_ICE_Enable_Public | k_nSteamNetworkingConfig_P2P_Transport_ICE_Enable_Private;
-    SteamNetworkingUtils()->SetConfigValue(
-        k_ESteamNetworkingConfig_P2P_Transport_ICE_Enable,
-        k_ESteamNetworkingConfig_Global, // <--- 关键：作用域选 Global
-        0,                               // Global 时此参数填 0
-        k_ESteamNetworkingConfig_Int32,
-        &nIceEnable);
+    // 1. 允许 P2P (ICE) 直连 - 使用默认设置，移除手动配置以避免兼容性问题
+    // SteamNetworkingUtils()->SetConfigValue(k_ESteamNetworkingConfig_P2P_Transport_ICE_Enable, ...);
 
     // 2. 增加连接超时时间，提高稳定性
     int32 timeoutMs = 30000; // 30秒
@@ -122,6 +115,7 @@ bool SteamNetworkingManager::joinHost(uint64 hostID)
 
     if (g_hConnection != k_HSteamNetConnection_Invalid)
     {
+        std::cout << "[客户端] 正在连接主机 " << hostSteamID.ConvertToUint64() << "...\033[K\n";
         return true;
     }
     else
@@ -247,6 +241,7 @@ void SteamNetworkingManager::handleConnectionStatusChanged(SteamNetConnectionSta
     }
     if (pInfo->m_eOldState == k_ESteamNetworkingConnectionState_None && pInfo->m_info.m_eState == k_ESteamNetworkingConnectionState_Connecting)
     {
+        std::cout << "[主机] 收到连接请求: " << pInfo->m_info.m_identityRemote.GetSteamID().ConvertToUint64() << "\033[K\n";
         m_lastError.clear(); // Clear error on new connection attempt
         m_pInterface->AcceptConnection(pInfo->m_hConn);
         connections.push_back(pInfo->m_hConn);
@@ -255,6 +250,7 @@ void SteamNetworkingManager::handleConnectionStatusChanged(SteamNetConnectionSta
     }
     else if (pInfo->m_eOldState == k_ESteamNetworkingConnectionState_Connecting && pInfo->m_info.m_eState == k_ESteamNetworkingConnectionState_Connected)
     {
+        std::cout << "[状态] 连接建立成功！\033[K\n";
         g_isConnected = true;
         m_lastError.clear(); // Clear error on successful connection
         SteamNetConnectionInfo_t info;
@@ -273,17 +269,9 @@ void SteamNetworkingManager::handleConnectionStatusChanged(SteamNetConnectionSta
         if (pInfo->m_info.m_eState == k_ESteamNetworkingConnectionState_ClosedByPeer) {
              ss << "连接断开 (对方关闭): " << pInfo->m_info.m_szEndDebug;
         } else {
-             // If m_lastError is already set (from the first block), we might want to append or keep it.
-             // But usually this block runs after the state change is finalized.
-             // Let's just overwrite or append if empty to be safe.
              if (m_lastError.empty()) {
                  ss << "连接断开 (本地问题): " << pInfo->m_info.m_szEndDebug;
              } else {
-                 // Already set, but let's add the details below if they weren't there? 
-                 // Actually, the first block sets it. Let's just use what we have or add more info if needed.
-                 // To be simple: if it's already set, we assume it's good.
-                 // But we want to ensure the code/desc is there.
-                 // Let's just reconstruct it to be sure we have the latest info.
                  ss << "连接断开 (本地问题): " << pInfo->m_info.m_szEndDebug;
              }
         }
@@ -291,6 +279,11 @@ void SteamNetworkingManager::handleConnectionStatusChanged(SteamNetConnectionSta
         if (ss.tellp() > 0) {
             ss << " [代码: " << pInfo->m_info.m_eEndReason << "]"
                << " [描述: " << pInfo->m_info.m_szConnectionDescription << "]";
+            
+            if (pInfo->m_info.m_eEndReason == 5008 || pInfo->m_info.m_eEndReason == 5002 || pInfo->m_info.m_eEndReason == 5003) {
+                 ss << "\n[提示] 请检查主机是否已启动 'host' 模式，且双方防火墙允许此程序通行。";
+            }
+            
             m_lastError = ss.str();
         }
 
