@@ -55,6 +55,7 @@ void printHelp() {
     std::cout << "  monitor [on/off]  - 开启/关闭实时状态监控\n";
     std::cout << "  relay [on/off]    - 开启/关闭强制中继模式 (解决防火墙问题)\n";
     std::cout << "  netstatus         - 检查 Steam 中继网络状态\n";
+    std::cout << "  ping              - 发送应用层 Ping 测试隧道连通性\n";
     std::cout << "  help              - 显示此帮助信息\n";
     std::cout << "  quit / exit       - 退出应用程序\n";
     std::cout << "> " << std::flush;
@@ -348,6 +349,8 @@ int main(int argc, char* argv[]) {
                 else std::cout << "用法：relay [on/off]\n";
             } else if (command == "netstatus") {
                 steamManager.printRelayStatus();
+            } else if (command == "ping") {
+                steamManager.sendPing();
             } else {
                 std::cout << "未知命令。输入 'help' 查看列表。\n";
             }

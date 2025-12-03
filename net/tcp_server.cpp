@@ -58,6 +58,15 @@ void TCPServer::start_accept() {
     auto socket = std::make_shared<tcp::socket>(io_context_);
     acceptor_.async_accept(*socket, [this, socket](const boost::system::error_code& error) {
         if (!error) {
+            std::cout << "[TCP] 收到本地连接请求 (Minecraft?)" << std::endl;
+            
+            if (!manager_->isConnected()) {
+                std::cout << "[TCP] 拒绝连接：未连接到主机 (P2P Not Ready)。" << std::endl;
+                socket->close();
+                if (running_) start_accept();
+                return;
+            }
+
             socket->set_option(tcp::no_delay(true)); // Enable TCP NoDelay
             auto multiplexManager = manager_->getMessageHandler()->getMultiplexManager(manager_->getConnection());
             std::string id = multiplexManager->addClient(socket);

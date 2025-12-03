@@ -22,6 +22,8 @@ public:
     void removeClient(const std::string& id);
     std::shared_ptr<tcp::socket> getClient(const std::string& id);
 
+    void sendPing();
+
     void sendTunnelPacket(const std::string& id, const char* data, size_t len, int type);
 
     void handleTunnelPacket(const char* data, size_t len);

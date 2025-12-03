@@ -197,6 +197,18 @@ void SteamNetworkingManager::printRelayStatus()
     }
 }
 
+void SteamNetworkingManager::sendPing()
+{
+    if (g_isConnected && g_hConnection != k_HSteamNetConnection_Invalid) {
+        auto mm = messageHandler_->getMultiplexManager(g_hConnection);
+        if (mm) {
+            mm->sendPing();
+        }
+    } else {
+        std::cout << "[Ping] 未连接到主机，无法发送 Ping。" << std::endl;
+    }
+}
+
 void SteamNetworkingManager::shutdown()
 {
     if (g_hConnection != k_HSteamNetConnection_Invalid)

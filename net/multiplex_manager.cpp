@@ -133,10 +133,30 @@ void MultiplexManager::handleTunnelPacket(const char *data, size_t len)
         removeClient(id);
         std::cout << "Client " << id << " disconnected" << std::endl;
     }
+    else if (type == 2) // Ping
+    {
+        // Send Pong
+        sendTunnelPacket(id, data + idLen + sizeof(uint32_t), len - idLen - sizeof(uint32_t), 3);
+    }
+    else if (type == 3) // Pong
+    {
+        auto now = std::chrono::steady_clock::now();
+        auto sentTime = *reinterpret_cast<const std::chrono::steady_clock::time_point*>(data + idLen + sizeof(uint32_t));
+        auto rtt = std::chrono::duration_cast<std::chrono::milliseconds>(now - sentTime).count();
+        std::cout << "[Ping] Pong received! RTT: " << rtt << " ms" << std::endl;
+    }
     else
     {
         std::cerr << "Unknown packet type " << type << std::endl;
     }
+}
+
+void MultiplexManager::sendPing()
+{
+    std::string id = "PING"; // Dummy ID
+    auto now = std::chrono::steady_clock::now();
+    sendTunnelPacket(id, reinterpret_cast<const char*>(&now), sizeof(now), 2);
+    std::cout << "[Ping] Sending Ping..." << std::endl;
 }
 
 void MultiplexManager::startAsyncRead(const std::string &id)
