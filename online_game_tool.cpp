@@ -102,7 +102,9 @@ void printStatus(SteamNetworkingManager& steamManager, SteamRoomManager& roomMan
 
     CSteamID lobbyID = roomManager.getCurrentLobby();
     if (lobbyID.IsValid()) {
+        std::cout << "--------------------------------------------------\n";
         std::cout << "大厅 ID：" << lobbyID.ConvertToUint64() << "\n";
+        std::cout << "--------------------------------------------------\n";
         std::cout << "成员列表：\n";
         
         std::vector<CSteamID> members = roomManager.getLobbyMembers();
