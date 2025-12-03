@@ -83,18 +83,23 @@ void clearScreen() {
     std::cout << "\033[1;1H"; 
 }
 
+// Suppress Steam API logs
+extern "C" void __cdecl SteamAPIDebugTextHook(int nSeverity, const char *pchDebugText) {
+    // Do nothing to suppress output
+}
+
 void printStatus(SteamNetworkingManager& steamManager, SteamRoomManager& roomManager) {
     if (monitorMode) {
         clearScreen();
-        std::cout << "=== 实时监控（输入 'monitor off' 停止） ===\n\n";
+        std::cout << "=== 实时监控（输入 'monitor off' 停止） ===\033[K\n\n";
     }
 
     if (steamManager.isHost()) {
-        std::cout << "[主机] 正在主持大厅。本地端口：" << localPort << "\n";
+        std::cout << "[主机] 正在主持大厅。本地端口：" << localPort << "\033[K\n";
     } else if (steamManager.isConnected()) {
-        std::cout << "[客户端] 已连接到大厅。\n";
+        std::cout << "[客户端] 已连接到大厅。\033[K\n";
     } else {
-        std::cout << "[状态] 未连接。\n";
+        std::cout << "[状态] 未连接。\033[K\n";
         // If not connected and in monitor mode, we still want to clear the rest of the screen
         if (monitorMode) std::cout << "\033[J";
         return;
@@ -102,17 +107,17 @@ void printStatus(SteamNetworkingManager& steamManager, SteamRoomManager& roomMan
 
     CSteamID lobbyID = roomManager.getCurrentLobby();
     if (lobbyID.IsValid()) {
-        std::cout << "--------------------------------------------------\n";
-        std::cout << "大厅 ID：" << lobbyID.ConvertToUint64() << "\n";
-        std::cout << "--------------------------------------------------\n";
-        std::cout << "成员列表：\n";
+        std::cout << "--------------------------------------------------\033[K\n";
+        std::cout << "大厅 ID：" << lobbyID.ConvertToUint64() << "\033[K\n";
+        std::cout << "--------------------------------------------------\033[K\n";
+        std::cout << "成员列表：\033[K\n";
         
         std::vector<CSteamID> members = roomManager.getLobbyMembers();
         CSteamID mySteamID = SteamUser()->GetSteamID();
         CSteamID hostSteamID = steamManager.getHostSteamID();
 
-        printf("%-20s %-10s %-20s\n", "名称", "延迟(ms)", "中继信息");
-        printf("--------------------------------------------------\n");
+        printf("%-20s %-10s %-20s\033[K\n", "名称", "延迟(ms)", "中继信息");
+        printf("--------------------------------------------------\033[K\n");
 
         for (const auto& memberID : members) {
             const char* name = SteamFriends()->GetFriendPersonaName(memberID);
@@ -120,7 +125,7 @@ void printStatus(SteamNetworkingManager& steamManager, SteamRoomManager& roomMan
             std::string relayInfo = "-";
 
             if (memberID == mySteamID) {
-                printf("%-20s %-10s %-20s\n", name, "-", "-");
+                printf("%-20s %-10s %-20s\033[K\n", name, "-", "-");
             } else {
                 if (steamManager.isHost()) {
                     // Host logic to find ping
@@ -146,16 +151,16 @@ void printStatus(SteamNetworkingManager& steamManager, SteamRoomManager& roomMan
                 }
                 
                 if (relayInfo != "-") {
-                    printf("%-20s %-10d %-20s\n", name, ping, relayInfo.c_str());
+                    printf("%-20s %-10d %-20s\033[K\n", name, ping, relayInfo.c_str());
                 } else {
-                    printf("%-20s %-10s %-20s\n", name, "-", "-");
+                    printf("%-20s %-10s %-20s\033[K\n", name, "-", "-");
                 }
             }
         }
     }
     
     if (server) {
-        std::cout << "\nTCP 服务器端口：8888 | 客户端数：" << server->getClientCount() << "\n";
+        std::cout << "\nTCP 服务器端口：8888 | 客户端数：" << server->getClientCount() << "\033[K\n";
     }
     
     if (monitorMode) {
@@ -174,6 +179,9 @@ int main(int argc, char* argv[]) {
         std::cerr << "初始化 Steam API 失败" << std::endl;
         return 1;
     }
+
+    // Suppress Steam API warnings/logs
+    SteamUtils()->SetWarningMessageHook(&SteamAPIDebugTextHook);
 
     boost::asio::io_context io_context;
     auto work_guard = boost::asio::make_work_guard(io_context);
