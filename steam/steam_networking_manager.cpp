@@ -147,6 +147,9 @@ bool SteamNetworkingManager::initialize()
 
     // Check if callbacks are registered
     std::cout << "Steam Networking Manager initialized successfully" << std::endl;
+    
+    CSteamID localID = SteamUser()->GetSteamID();
+    std::cout << "[Steam] 当前登录用户ID: " << localID.ConvertToUint64() << std::endl;
 
     return true;
 }
