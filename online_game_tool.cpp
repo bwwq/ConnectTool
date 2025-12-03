@@ -155,7 +155,7 @@ void printStatus(SteamNetworkingManager& steamManager, SteamRoomManager& roomMan
     }
 }
 
-int main() {
+int main(int argc, char* argv[]) {
     // Initialize Steam API
     if (!SteamAPI_Init()) {
         std::cerr << "初始化 Steam API 失败" << std::endl;
@@ -181,6 +181,24 @@ int main() {
     // Set dependencies
     steamManager.setMessageHandlerDependencies(io_context, server, localPort);
     steamManager.startMessageHandler();
+
+    // Check for command line arguments (Steam Invite)
+    for (int i = 1; i < argc; ++i) {
+        std::string arg = argv[i];
+        if (arg == "+connect_lobby" && i + 1 < argc) {
+            uint64 lobbyIDVal = std::stoull(argv[i + 1]);
+            std::cout << "检测到启动参数：加入大厅 " << lobbyIDVal << "\n";
+            if (steamManager.joinHost(lobbyIDVal)) {
+                server = std::make_unique<TCPServer>(8888, &steamManager);
+                if (!server->start()) {
+                    std::cerr << "启动 TCP 服务器失败\n";
+                } else {
+                    std::cout << "已加入大厅 " << lobbyIDVal << "。TCP 服务器已在 8888 启动。\n";
+                    monitorMode = true;
+                }
+            }
+        }
+    }
 
     // Set console code page to UTF-8 for Windows to display Chinese correctly
 #ifdef _WIN32
