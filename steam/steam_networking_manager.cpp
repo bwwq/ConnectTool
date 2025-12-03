@@ -167,6 +167,35 @@ void SteamNetworkingManager::setForceRelay(bool force)
     std::cout << (force ? "[配置] 已开启强制中继模式 (Force Relay)。" : "[配置] 已关闭强制中继模式 (Auto P2P)。") << std::endl;
 }
 
+void SteamNetworkingManager::printRelayStatus()
+{
+    SteamRelayNetworkStatus_t status;
+    SteamNetworkingUtils()->GetRelayNetworkStatus(&status);
+    
+    std::cout << "=== Steam Relay Network Status ===" << std::endl;
+    std::cout << "Availability: ";
+    switch (status.m_eAvail) {
+        case k_ESteamNetworkingAvailability_CannotTry: std::cout << "CannotTry (Critical Error)"; break;
+        case k_ESteamNetworkingAvailability_Failed: std::cout << "Failed (Check Internet/Firewall)"; break;
+        case k_ESteamNetworkingAvailability_Previously: std::cout << "Previously Available (Retrying...)"; break;
+        case k_ESteamNetworkingAvailability_Retrying: std::cout << "Retrying..."; break;
+        case k_ESteamNetworkingAvailability_NeverTried: std::cout << "NeverTried (Wait a bit)"; break;
+        case k_ESteamNetworkingAvailability_Waiting: std::cout << "Waiting for Config..."; break;
+        case k_ESteamNetworkingAvailability_Attempting: std::cout << "Attempting Connection..."; break;
+        case k_ESteamNetworkingAvailability_Current: std::cout << "Current (OK)"; break;
+        case k_ESteamNetworkingAvailability_Unknown: std::cout << "Unknown"; break;
+        default: std::cout << "Code " << status.m_eAvail; break;
+    }
+    std::cout << std::endl;
+    
+    if (status.m_eAvail != k_ESteamNetworkingAvailability_Current) {
+        std::cout << "Debug Msg: " << status.m_szDebugMsg << std::endl;
+        std::cout << "[提示] 如果状态不是 'Current (OK)'，请等待几分钟或检查网络。" << std::endl;
+    } else {
+        std::cout << "Ping to Relay: " << status.m_nPingMeasurementFileBytes << " bytes config" << std::endl;
+    }
+}
+
 void SteamNetworkingManager::shutdown()
 {
     if (g_hConnection != k_HSteamNetConnection_Invalid)
@@ -183,6 +212,12 @@ void SteamNetworkingManager::shutdown()
 bool SteamNetworkingManager::joinHost(uint64 hostID)
 {
     CSteamID hostSteamID(hostID);
+    
+    if (hostSteamID == SteamUser()->GetSteamID()) {
+        std::cerr << "[错误] 不能连接到自己！请确保您和主机使用不同的 Steam 账号。" << std::endl;
+        return false;
+    }
+
     g_isClient = true;
     g_hostSteamID = hostSteamID;
     SteamNetworkingIdentity identity;

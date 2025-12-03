@@ -32,6 +32,7 @@ public:
     bool initialize();
     void shutdown();
     void setForceRelay(bool force);
+    void printRelayStatus();
 
     // Joining
     bool joinHost(uint64 hostID);
