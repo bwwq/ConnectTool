@@ -233,43 +233,65 @@ int main(int argc, char* argv[]) {
         }
 
         if (!command.empty()) {
-            std::stringstream ss(command);
             std::string cmd;
-            ss >> cmd;
+            std::string arg;
 
-            if (cmd == "quit" || cmd == "exit") {
-                isRunning = false;
-            } else if (cmd == "help") {
-                printHelp();
-            } else if (cmd == "host") {
-                int port = 0;
-                if (ss >> port) {
-                    localPort = port;
-                    roomManager.startHosting();
-                    std::cout << "正在本地端口 " << localPort << " 主持大厅...\n";
-                    monitorMode = true; // Auto-enable monitor
-                } else {
-                    std::cout << "用法：host <端口>\n";
+            // Helper lambda to check prefix and extract argument
+            auto checkCommand = [&](const std::string& prefix) -> bool {
+                if (command.rfind(prefix, 0) == 0) { // Starts with prefix
+                    cmd = prefix;
+                    if (command.length() > prefix.length()) {
+                        arg = command.substr(prefix.length());
+                        // Trim leading spaces
+                        arg.erase(0, arg.find_first_not_of(" \t"));
+                    }
+                    return true;
                 }
-            } else if (cmd == "join") {
-                uint64 lobbyIDVal;
-                if (ss >> lobbyIDVal) {
-                    if (steamManager.joinHost(lobbyIDVal)) {
-                        // Start TCP Server
-                        server = std::make_unique<TCPServer>(8888, &steamManager);
-                        if (!server->start()) {
-                            std::cerr << "启动 TCP 服务器失败\n";
+                return false;
+            };
+
+            if (command == "quit" || command == "exit") {
+                isRunning = false;
+            } else if (command == "help") {
+                printHelp();
+            } else if (checkCommand("host")) {
+                int port = 0;
+                try {
+                    if (!arg.empty()) {
+                        port = std::stoi(arg);
+                        localPort = port;
+                        roomManager.startHosting();
+                        std::cout << "正在本地端口 " << localPort << " 主持大厅...\n";
+                        monitorMode = true;
+                    } else {
+                        std::cout << "用法：host <端口>\n";
+                    }
+                } catch (...) {
+                    std::cout << "无效端口号\n";
+                }
+            } else if (checkCommand("join")) {
+                uint64 lobbyIDVal = 0;
+                try {
+                    if (!arg.empty()) {
+                        lobbyIDVal = std::stoull(arg);
+                        if (steamManager.joinHost(lobbyIDVal)) {
+                            server = std::make_unique<TCPServer>(8888, &steamManager);
+                            if (!server->start()) {
+                                std::cerr << "启动 TCP 服务器失败\n";
+                            } else {
+                                std::cout << "已加入大厅 " << lobbyIDVal << "。TCP 服务器已在 8888 启动。\n";
+                                monitorMode = true;
+                            }
                         } else {
-                            std::cout << "已加入大厅 " << lobbyIDVal << "。TCP 服务器已在 8888 启动。\n";
-                            monitorMode = true; // Auto-enable monitor
+                            std::cout << "加入大厅失败。\n";
                         }
                     } else {
-                        std::cout << "加入大厅失败。\n";
+                        std::cout << "用法：join <大厅ID>\n";
                     }
-                } else {
-                    std::cout << "用法：join <大厅ID>\n";
+                } catch (...) {
+                    std::cout << "无效大厅ID\n";
                 }
-            } else if (cmd == "disconnect") {
+            } else if (command == "disconnect") {
                 roomManager.leaveLobby();
                 steamManager.disconnect();
                 if (server) {
@@ -278,17 +300,16 @@ int main(int argc, char* argv[]) {
                 }
                 monitorMode = false;
                 std::cout << "已断开连接。\n";
-            } else if (cmd == "friends") {
+            } else if (command == "friends") {
                 std::cout << "好友列表：\n";
                 for (const auto& friendPair : SteamUtils::getFriendsList()) {
                     std::cout << " - " << friendPair.second << " (" << friendPair.first.ConvertToUint64() << ")\n";
                 }
-            } else if (cmd == "invite") {
-                std::string filter;
-                ss >> filter;
-                if (filter.empty()) {
+            } else if (checkCommand("invite")) {
+                if (arg.empty()) {
                     std::cout << "用法：invite <名称片段>\n";
                 } else {
+                    std::string filter = arg;
                     std::transform(filter.begin(), filter.end(), filter.begin(), ::tolower);
                     bool found = false;
                     for (const auto& friendPair : SteamUtils::getFriendsList()) {
@@ -306,11 +327,9 @@ int main(int argc, char* argv[]) {
                     }
                     if (!found) std::cout << "未找到匹配 '" << filter << "' 的好友\n";
                 }
-            } else if (cmd == "status") {
+            } else if (command == "status") {
                 printStatus(steamManager, roomManager);
-            } else if (cmd == "monitor") {
-                std::string arg;
-                ss >> arg;
+            } else if (checkCommand("monitor")) {
                 if (arg == "on") monitorMode = true;
                 else if (arg == "off") monitorMode = false;
                 else std::cout << "用法：monitor [on/off]\n";
