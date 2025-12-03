@@ -234,9 +234,11 @@ void SteamNetworkingManager::handleConnectionStatusChanged(SteamNetConnectionSta
     if (pInfo->m_info.m_eState == k_ESteamNetworkingConnectionState_ProblemDetectedLocally)
     {
         // Connection failed
+        m_lastError = "连接失败: " + std::string(pInfo->m_info.m_szEndDebug);
     }
     if (pInfo->m_eOldState == k_ESteamNetworkingConnectionState_None && pInfo->m_info.m_eState == k_ESteamNetworkingConnectionState_Connecting)
     {
+        m_lastError.clear(); // Clear error on new connection attempt
         m_pInterface->AcceptConnection(pInfo->m_hConn);
         connections.push_back(pInfo->m_hConn);
         g_hConnection = pInfo->m_hConn;
@@ -245,6 +247,7 @@ void SteamNetworkingManager::handleConnectionStatusChanged(SteamNetConnectionSta
     else if (pInfo->m_eOldState == k_ESteamNetworkingConnectionState_Connecting && pInfo->m_info.m_eState == k_ESteamNetworkingConnectionState_Connected)
     {
         g_isConnected = true;
+        m_lastError.clear(); // Clear error on successful connection
         SteamNetConnectionInfo_t info;
         SteamNetConnectionRealTimeStatus_t status;
         if (m_pInterface->GetConnectionInfo(pInfo->m_hConn, &info) && m_pInterface->GetConnectionRealTimeStatus(pInfo->m_hConn, &status, 0, nullptr))
@@ -256,6 +259,14 @@ void SteamNetworkingManager::handleConnectionStatusChanged(SteamNetConnectionSta
     {
         g_isConnected = false;
         g_hConnection = k_HSteamNetConnection_Invalid;
+        
+        if (pInfo->m_info.m_eState == k_ESteamNetworkingConnectionState_ClosedByPeer) {
+             m_lastError = "连接断开 (对方关闭): " + std::string(pInfo->m_info.m_szEndDebug);
+        } else {
+             // Already set above for ProblemDetectedLocally, but ensure it's set here too if needed
+             if (m_lastError.empty()) m_lastError = "连接断开 (本地问题): " + std::string(pInfo->m_info.m_szEndDebug);
+        }
+
         // Remove from connections
         auto it = std::find(connections.begin(), connections.end(), pInfo->m_hConn);
         if (it != connections.end())

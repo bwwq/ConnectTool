@@ -100,6 +100,10 @@ void printStatus(SteamNetworkingManager& steamManager, SteamRoomManager& roomMan
         std::cout << "[客户端] 已连接到大厅。\033[K\n";
     } else {
         std::cout << "[状态] 未连接。\033[K\n";
+        std::string lastError = steamManager.getLastError();
+        if (!lastError.empty()) {
+            std::cout << "[信息] " << lastError << "\033[K\n";
+        }
         // If not connected and in monitor mode, we still want to clear the rest of the screen
         if (monitorMode) std::cout << "\033[J";
         return;

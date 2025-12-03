@@ -68,10 +68,12 @@ public:
     // For callbacks
     void setHostSteamID(CSteamID id) { g_hostSteamID = id; }
     CSteamID getHostSteamID() const { return g_hostSteamID; }
+    std::string getLastError() const { return m_lastError; }
 
 private:
     // Steam API
     ISteamNetworkingSockets* m_pInterface;
+    std::string m_lastError;
 
     // Hosting
     HSteamListenSocket hListenSock;
