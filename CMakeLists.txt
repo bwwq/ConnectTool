@@ -7,10 +7,15 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Find packages
 find_package(Boost REQUIRED)
 
+# Definitions
+add_definitions(-D_WIN32_WINNT=0x0601)
+
 # Include directories
 include_directories(${CMAKE_SOURCE_DIR})
 include_directories(${CMAKE_SOURCE_DIR}/steamworks/public)
 include_directories(${CMAKE_SOURCE_DIR}/steamworks/public/steam)
+include_directories(${CMAKE_SOURCE_DIR}/steam_sdk/public/steam)
+include_directories(${CMAKE_SOURCE_DIR}/nanoid_root)
 include_directories(${CMAKE_SOURCE_DIR}/net)
 
 # Source files
@@ -24,14 +29,19 @@ file(GLOB SOURCES
 add_executable(ConnectTool ${SOURCES})
 
 # Link libraries
+# Link libraries
 target_link_libraries(ConnectTool
     Boost::headers
-    ${CMAKE_SOURCE_DIR}/steamworks/redistributable_bin/osx/libsteam_api.dylib
+    ws2_32
+    ${CMAKE_SOURCE_DIR}/steam_sdk/lib/steam_api64.lib
 )
 
-# Copy libsteam_api.dylib to output directory for runtime
+# Copy steam_api64.dll to output directory for runtime
 add_custom_command(TARGET ConnectTool POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy
-    ${CMAKE_SOURCE_DIR}/steamworks/redistributable_bin/osx/libsteam_api.dylib
-    $<TARGET_FILE_DIR:ConnectTool>/libsteam_api.dylib
+    ${CMAKE_SOURCE_DIR}/steam_sdk/redistributable_bin/win64/steam_api64.dll
+    $<TARGET_FILE_DIR:ConnectTool>/steam_api64.dll
+    COMMAND ${CMAKE_COMMAND} -E copy
+    ${CMAKE_SOURCE_DIR}/build/Release/steam_api64.dll
+    $<TARGET_FILE_DIR:ConnectTool>/steam_api64.dll
 )
