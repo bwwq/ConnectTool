@@ -26,7 +26,6 @@ std::string MultiplexManager::addClient(std::shared_ptr<tcp::socket> socket)
         std::lock_guard<std::mutex> lock(mapMutex_);
         id = nanoid::generate(6);
         clientMap_[id] = socket;
-        readBuffers_[id].resize(131072); // 128KB
     }
     startAsyncRead(id);
     std::cout << "Added client with id " << id << std::endl;
@@ -42,7 +41,6 @@ void MultiplexManager::removeClient(const std::string &id)
         it->second->close();
         clientMap_.erase(it);
     }
-    readBuffers_.erase(id);
 
     std::cout << "Removed client with id " << id << std::endl;
 }
@@ -106,7 +104,6 @@ void MultiplexManager::handleTunnelPacket(const char *data, size_t len)
                 {
                     std::lock_guard<std::mutex> lock(mapMutex_);
                     clientMap_[id] = newSocket;
-                    readBuffers_[id].resize(131072); // 128KB
                     socket = newSocket;
                 }
                 std::cout << "Successfully created TCP client for id " << id << std::endl;
@@ -167,7 +164,6 @@ void MultiplexManager::sendPing()
 void MultiplexManager::startAsyncRead(const std::string &id)
 {
     std::shared_ptr<tcp::socket> socket;
-    std::vector<char>* bufferPtr = nullptr;
     {
         std::lock_guard<std::mutex> lock(mapMutex_);
         auto it = clientMap_.find(id);
@@ -175,16 +171,19 @@ void MultiplexManager::startAsyncRead(const std::string &id)
             return; // Client already removed
         }
         socket = it->second;
-        bufferPtr = &readBuffers_[id];
     }
     
     if (!socket || !socket->is_open()) {
         return;
     }
     
-    // Capture socket by value (shared_ptr) to keep it alive during async operation
-    socket->async_read_some(boost::asio::buffer(*bufferPtr),
-    [this, id, socket, bufferPtr](const boost::system::error_code &ec, std::size_t bytes_transferred)
+    // Create a dedicated buffer for THIS async read operation
+    // This buffer is owned by the lambda and will not be invalidated by removeClient
+    auto readBuffer = std::make_shared<std::vector<char>>(131072); // 128KB
+    
+    // Capture socket and buffer by value (shared_ptr) to keep them alive
+    socket->async_read_some(boost::asio::buffer(*readBuffer),
+    [this, id, socket, readBuffer](const boost::system::error_code &ec, std::size_t bytes_transferred)
     {
         if (!ec)
         {
@@ -197,7 +196,8 @@ void MultiplexManager::startAsyncRead(const std::string &id)
                     clientExists = (clientMap_.find(id) != clientMap_.end());
                 }
                 if (clientExists) {
-                    sendTunnelPacket(id, bufferPtr->data(), bytes_transferred, 0);
+                    // readBuffer is owned by this lambda - it's safe to use
+                    sendTunnelPacket(id, readBuffer->data(), bytes_transferred, 0);
                 }
             }
             startAsyncRead(id);
