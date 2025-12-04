@@ -166,26 +166,47 @@ void MultiplexManager::sendPing()
 
 void MultiplexManager::startAsyncRead(const std::string &id)
 {
-    auto socket = getClient(id);
-    if (!socket)
+    std::shared_ptr<tcp::socket> socket;
+    std::vector<char>* bufferPtr = nullptr;
     {
-        std::cout << "Error: Socket is null for id " << id << std::endl;
+        std::lock_guard<std::mutex> lock(mapMutex_);
+        auto it = clientMap_.find(id);
+        if (it == clientMap_.end()) {
+            return; // Client already removed
+        }
+        socket = it->second;
+        bufferPtr = &readBuffers_[id];
+    }
+    
+    if (!socket || !socket->is_open()) {
         return;
     }
-    socket->async_read_some(boost::asio::buffer(readBuffers_[id]),
-    [this, id](const boost::system::error_code &ec, std::size_t bytes_transferred)
+    
+    // Capture socket by value (shared_ptr) to keep it alive during async operation
+    socket->async_read_some(boost::asio::buffer(*bufferPtr),
+    [this, id, socket, bufferPtr](const boost::system::error_code &ec, std::size_t bytes_transferred)
     {
         if (!ec)
         {
             if (bytes_transferred > 0)
             {
-                sendTunnelPacket(id, readBuffers_[id].data(), bytes_transferred, 0);
+                // Check if client still exists before sending
+                bool clientExists = false;
+                {
+                    std::lock_guard<std::mutex> lock(mapMutex_);
+                    clientExists = (clientMap_.find(id) != clientMap_.end());
+                }
+                if (clientExists) {
+                    sendTunnelPacket(id, bufferPtr->data(), bytes_transferred, 0);
+                }
             }
             startAsyncRead(id);
         }
         else
         {
-            std::cout << "Error reading from TCP client " << id << ": " << ec.message() << std::endl;
+            if (ec != boost::asio::error::operation_aborted) {
+                std::cout << "Error reading from TCP client " << id << ": " << ec.message() << std::endl;
+            }
             removeClient(id);
         }
     });

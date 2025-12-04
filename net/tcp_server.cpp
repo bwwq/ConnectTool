@@ -41,10 +41,13 @@ void TCPServer::sendToAll(const std::string& message, std::shared_ptr<tcp::socke
 }
 
 void TCPServer::sendToAll(const char* data, size_t size, std::shared_ptr<tcp::socket> excludeSocket) {
+    // Copy data to shared buffer to keep it alive for async_write
+    auto buffer = std::make_shared<std::vector<char>>(data, data + size);
     std::lock_guard<std::mutex> lock(clientsMutex_);
     for (auto& client : clients_) {
         if (client != excludeSocket) {
-            boost::asio::async_write(*client, boost::asio::buffer(data, size), [](const boost::system::error_code&, std::size_t) {});
+            boost::asio::async_write(*client, boost::asio::buffer(*buffer), 
+                [buffer](const boost::system::error_code&, std::size_t) {});
         }
     }
 }
