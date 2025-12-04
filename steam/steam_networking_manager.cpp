@@ -5,13 +5,10 @@
 
 SteamNetworkingManager *SteamNetworkingManager::instance = nullptr;
 
-// Static callback function
-void SteamNetworkingManager::OnSteamNetConnectionStatusChanged(SteamNetConnectionStatusChangedCallback_t *pInfo)
+// STEAM_CALLBACK 回调函数 - 当连接状态改变时由 SteamAPI_RunCallbacks() 调用
+void SteamNetworkingManager::OnSteamNetConnectionStatusChanged(SteamNetConnectionStatusChangedCallback_t *pCallback)
 {
-    if (instance)
-    {
-        instance->handleConnectionStatusChanged(pInfo);
-    }
+    handleConnectionStatusChanged(pCallback);
 }
 
 SteamNetworkingManager::SteamNetworkingManager()
@@ -139,9 +136,11 @@ bool SteamNetworkingManager::initialize()
 
     std::cout << "[配置] 已应用高性能网络参数 (NoDelay, 5MB/s Rate, 10MB Buffer)" << std::endl;
 
-    // Create callbacks after Steam API init
+    // Initialize relay network access
     SteamNetworkingUtils()->InitRelayNetworkAccess();
-    SteamNetworkingUtils()->SetGlobalCallback_SteamNetConnectionStatusChanged(OnSteamNetConnectionStatusChanged);
+    // 注意：不再使用 SetGlobalCallback，而是使用 STEAM_CALLBACK 宏
+    // STEAM_CALLBACK 会自动在 SteamAPI_RunCallbacks() 时调度回调
+    std::cout << "[SteamNet] Using STEAM_CALLBACK for connection status changes" << std::endl;
 
     m_pInterface = SteamNetworkingSockets();
 

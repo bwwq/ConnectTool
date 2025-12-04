@@ -88,7 +88,8 @@ private:
 
     // Connections
     std::vector<HSteamNetConnection> connections;
-    std::mutex connectionsMutex;
+    std::map<CSteamID, HSteamNetConnection> peerConnections_;  // SteamID -> Connection mapping
+    mutable std::mutex connectionsMutex;
     int hostPing_;  // Ping to host (for clients) or average ping (for host)
 
     // Connection config
@@ -102,8 +103,8 @@ private:
     int* localPort_;
     SteamMessageHandler* messageHandler_;
 
-    // Callback
-    static void OnSteamNetConnectionStatusChanged(SteamNetConnectionStatusChangedCallback_t *pInfo);
+    // 使用 STEAM_CALLBACK 宏来确保回调正确注册（由 SteamAPI_RunCallbacks() 自动触发）
+    STEAM_CALLBACK(SteamNetworkingManager, OnSteamNetConnectionStatusChanged, SteamNetConnectionStatusChangedCallback_t);
     void handleConnectionStatusChanged(SteamNetConnectionStatusChangedCallback_t *pInfo);
 
     friend class SteamRoomManager;

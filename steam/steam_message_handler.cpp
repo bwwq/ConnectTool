@@ -37,8 +37,9 @@ std::shared_ptr<MultiplexManager> SteamMessageHandler::getMultiplexManager(HStea
 void SteamMessageHandler::startAsyncPoll() {
     if (!running_) return;
     
-    // Poll Steam networking callbacks for connection status updates
-    m_pInterface_->RunCallbacks();
+    // NOTE: 不在这里调用 RunCallbacks()！
+    // 连接状态回调由主循环的 SteamAPI_RunCallbacks() 通过 STEAM_CALLBACK 宏触发
+    // 这里只负责接收和处理消息
     
     // Receive messages and check if any were received
     int totalMessages = 0;
