@@ -117,11 +117,13 @@ void MultiplexManager::handleTunnelPacket(const char *data, size_t len)
         }
         if (socket)
         {
-            // CRITICAL FIX: Copy data to a shared buffer to keep it alive for async_write
-            // The original 'packetData' is freed immediately after this function returns!
-            auto buffer = std::make_shared<std::vector<char>>(packetData, packetData + dataLen);
-            boost::asio::async_write(*socket, boost::asio::buffer(*buffer), 
-                [buffer](const boost::system::error_code &, std::size_t) {});
+            // Use synchronous write to prevent data interleaving
+            // Multiple async_write calls on the same socket can cause data corruption!
+            try {
+                boost::asio::write(*socket, boost::asio::buffer(packetData, dataLen));
+            } catch (const boost::system::system_error& e) {
+                std::cerr << "Error writing to TCP client " << id << ": " << e.what() << std::endl;
+            }
         }
         else
         {
