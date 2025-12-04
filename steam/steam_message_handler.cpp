@@ -37,8 +37,9 @@ std::shared_ptr<MultiplexManager> SteamMessageHandler::getMultiplexManager(HStea
 void SteamMessageHandler::startAsyncPoll() {
     if (!running_) return;
     
-    // Poll networking callbacks
-    m_pInterface_->RunCallbacks();
+    // NOTE: Do NOT call RunCallbacks() here!
+    // Steam callbacks should be handled by SteamAPI_RunCallbacks() in main thread
+    // Calling it here can cause deadlock due to mutex contention
     
     // Receive messages and check if any were received
     int totalMessages = 0;
@@ -48,8 +49,8 @@ void SteamMessageHandler::startAsyncPoll() {
         currentConnections = connections_;
     }
     for (auto conn : currentConnections) {
-        ISteamNetworkingMessage* pIncomingMsgs[10];
-        int numMsgs = m_pInterface_->ReceiveMessagesOnConnection(conn, pIncomingMsgs, 10);
+        ISteamNetworkingMessage* pIncomingMsgs[64];  // Increased to 64 for better throughput
+        int numMsgs = m_pInterface_->ReceiveMessagesOnConnection(conn, pIncomingMsgs, 64);
         totalMessages += numMsgs;
         for (int i = 0; i < numMsgs; ++i) {
             ISteamNetworkingMessage* pIncomingMsg = pIncomingMsgs[i];
